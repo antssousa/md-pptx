@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html class="dark" lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1326" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Syntax Gallery — MD → PPTX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+
+    <!-- ── Top App Bar ───────────────────────────────────────────────── -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="topbar-icon-btn" id="sidebar-toggle" title="Menu">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <span class="logo">Syntax Gallery</span>
+      </div>
+
+      <nav class="topbar-nav">
+        <a href="#" class="topbar-link active">Editor</a>
+        <a href="#" class="topbar-link">Templates</a>
+        <a href="#" class="topbar-link">History</a>
+      </nav>
+
+      <div class="topbar-right">
+        <label class="btn btn-ghost" title="Carregar template .pptx">
+          <span class="material-symbols-outlined">upload_file</span>
+          Template
+          <input id="template-input" type="file" accept=".pptx" hidden />
+        </label>
+        <span id="template-name" class="template-badge" hidden></span>
+        <button id="download-btn" class="btn btn-primary" title="Exportar PPTX">
+          <span class="material-symbols-outlined">download</span>
+          Export
+        </button>
+      </div>
+    </header>
+
+    <!-- ── App body ──────────────────────────────────────────────────── -->
+    <div class="app-body">
+
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-label">Gallery Workspace</div>
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-item">
+            <span class="material-symbols-outlined">folder_open</span>
+            All Projects
+          </a>
+          <a href="#" class="sidebar-item">
+            <span class="material-symbols-outlined">auto_awesome_motion</span>
+            Templates
+          </a>
+          <a href="#" class="sidebar-item active">
+            <span class="material-symbols-outlined">history</span>
+            Recent Slides
+          </a>
+          <a href="#" class="sidebar-item">
+            <span class="material-symbols-outlined">inventory_2</span>
+            Archive
+          </a>
+        </nav>
+      </aside>
+
+      <!-- Editor + Preview split -->
+      <main class="workspace">
+
+        <!-- ── Editor pane ── -->
+        <section class="pane pane-editor" id="editor-pane">
+          <div class="editor-toolbar">
+            <button class="editor-tool" id="tool-bold"    title="Bold">
+              <span class="material-symbols-outlined">format_bold</span>
+            </button>
+            <button class="editor-tool" id="tool-italic"  title="Italic">
+              <span class="material-symbols-outlined">format_italic</span>
+            </button>
+            <button class="editor-tool" id="tool-heading" title="Heading">
+              <span class="material-symbols-outlined">title</span>
+            </button>
+            <div class="tool-sep"></div>
+            <button class="editor-tool" id="tool-list"    title="List">
+              <span class="material-symbols-outlined">format_list_bulleted</span>
+            </button>
+            <button class="editor-tool" id="tool-image"   title="Image">
+              <span class="material-symbols-outlined">image</span>
+            </button>
+            <div class="tool-spacer"></div>
+            <span id="slide-count" class="badge">1 slide</span>
+            <span class="filename">draft.md</span>
+          </div>
+          <div id="editor-mount"></div>
+        </section>
+
+        <!-- Resizer -->
+        <div class="resizer" id="resizer" title="Arrastar para redimensionar"></div>
+
+        <!-- ── Preview pane ── -->
+        <section class="pane pane-preview" id="preview-pane">
+
+          <!-- Floating top bar (badges) -->
+          <div class="preview-top-bar">
+            <div class="live-badge">
+              <span class="live-dot"></span>
+              Live Preview
+            </div>
+            <div class="preview-tags">
+              <span class="preview-tag">16:9</span>
+              <span class="preview-tag">Dark Theme</span>
+            </div>
+          </div>
+
+          <!-- Slide content -->
+          <div id="preview-mount">
+            <div class="preview-empty">
+              <p>Escreva Markdown no editor ao lado.</p>
+              <p>Use <code>---</code> para separar slides.</p>
+            </div>
+          </div>
+
+          <!-- Floating bottom toolbar -->
+          <div class="preview-floating-bar">
+            <button id="prev-slide" class="float-btn" title="Slide anterior">
+              <span class="material-symbols-outlined">chevron_left</span>
+            </button>
+            <span id="slide-indicator" class="slide-counter">1 / 1</span>
+            <button id="next-slide" class="float-btn" title="Próximo slide">
+              <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+            <div class="float-sep"></div>
+            <button class="float-btn" id="btn-grid" title="Visão em grade">
+              <span class="material-symbols-outlined">grid_view</span>
+            </button>
+            <button class="float-btn" id="btn-play" title="Apresentar">
+              <span class="material-symbols-outlined">play_arrow</span>
+            </button>
+          </div>
+
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
