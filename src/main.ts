@@ -1,8 +1,23 @@
 import './style.css'
-import { createEditor, insertAround, insertAtLineStart } from './editor'
+import { createEditor, insertAround, insertAtLineStart, setEditorContent, INITIAL_MD } from './editor'
 import { renderMarkdown, mountSlideInFrame, createSlideFrame, scaleFrame } from './preview'
 import { convertToPptx } from './converter'
 import { setupTemplateLoader, getTemplateState } from './template'
+
+// ─── Auto-save ───────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'md-pptx-draft'
+
+function loadDraft(): string | null {
+  try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
+}
+
+function saveDraft(md: string): void {
+  try { localStorage.setItem(STORAGE_KEY, md) } catch { /* quota exceeded */ }
+}
+
+function clearDraft(): void {
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
+}
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const editorMount    = document.getElementById('editor-mount')!
@@ -19,6 +34,9 @@ const editorPane     = document.getElementById('editor-pane')!
 const toastEl        = document.getElementById('toast')!
 const sidebarToggle  = document.getElementById('sidebar-toggle') as HTMLButtonElement
 const sidebar        = document.getElementById('sidebar')!
+const saveStatusEl   = document.getElementById('save-status')!
+const newBtn         = document.getElementById('new-btn') as HTMLButtonElement
+const importInput    = document.getElementById('import-input') as HTMLInputElement
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let currentSlides: string[] = []
@@ -33,13 +51,32 @@ function showToast(msg: string, type: 'success' | 'error' | '' = '') {
   toastEl.className      = `toast${type ? ' ' + type : ''}`
   toastEl.hidden         = false
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toastEl.hidden = true }, 3000)
+  toastTimer = setTimeout(() => { toastEl.hidden = true }, 3500)
+}
+
+// ─── Save status indicator ───────────────────────────────────────────────────
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function showSaveStatus(state: 'saving' | 'saved') {
+  if (state === 'saving') {
+    saveStatusEl.textContent = 'Salvando…'
+    saveStatusEl.className   = 'save-status saving'
+  } else {
+    const now = new Date()
+    const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    saveStatusEl.textContent = `✓ Salvo às ${time}`
+    saveStatusEl.className   = 'save-status saved'
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      saveStatusEl.className = 'save-status idle'
+    }, 3000)
+  }
 }
 
 // ─── Preview renderer ─────────────────────────────────────────────────────────
 function updateSlideNav() {
   const total = currentSlides.length
-  slideCountEl.textContent  = `${total} slide${total !== 1 ? 's' : ''}`
+  slideCountEl.textContent   = `${total} slide${total !== 1 ? 's' : ''}`
   slideIndicator.textContent = `${currentSlide + 1} / ${total}`
   prevBtn.disabled = currentSlide === 0
   nextBtn.disabled = currentSlide === total - 1
@@ -49,7 +86,6 @@ function showSlide(index: number) {
   if (!currentSlides.length) return
   currentSlide = Math.max(0, Math.min(index, currentSlides.length - 1))
 
-  // Create wrapper + iframe on first render
   let wrapper = previewMount.querySelector<HTMLElement>('.slide-wrapper')
   if (!wrapper) {
     previewMount.innerHTML = ''
@@ -64,7 +100,7 @@ function showSlide(index: number) {
   updateSlideNav()
 }
 
-// Debounce helper
+// ─── Debounce helper ──────────────────────────────────────────────────────────
 function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number): (...args: Parameters<T>) => void {
   let timer: ReturnType<typeof setTimeout>
   return (...args) => {
@@ -73,19 +109,28 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
   }
 }
 
+// ─── Markdown change handler ──────────────────────────────────────────────────
 const handleMdChange = debounce((md: string) => {
+  // Auto-save
+  showSaveStatus('saving')
+  saveDraft(md)
+  showSaveStatus('saved')
+
+  // Preview
   const result = renderMarkdown(md)
   currentSlides = result.slides
   currentCss    = result.css
-
-  // Keep current slide index valid
   if (currentSlide >= result.count) currentSlide = result.count - 1
-
   showSlide(currentSlide)
 }, 300)
 
 // ─── Editor init ─────────────────────────────────────────────────────────────
-const editor = createEditor(editorMount, handleMdChange)
+const savedDraft = loadDraft()
+const editor = createEditor(editorMount, handleMdChange, savedDraft ?? undefined)
+
+if (savedDraft) {
+  showToast('Rascunho restaurado automaticamente.', 'success')
+}
 
 // ─── Formatting toolbar ───────────────────────────────────────────────────────
 document.getElementById('tool-bold')?.addEventListener('click', () => {
@@ -107,6 +152,35 @@ document.getElementById('tool-list')?.addEventListener('click', () => {
 document.getElementById('tool-image')?.addEventListener('click', () => {
   insertAround(editor, '![', '](url)')
   editor.focus()
+})
+
+// ─── Novo documento ──────────────────────────────────────────────────────────
+newBtn.addEventListener('click', () => {
+  if (!confirm('Descartar o rascunho atual e começar um novo documento?')) return
+  clearDraft()
+  setEditorContent(editor, INITIAL_MD)
+  saveStatusEl.className   = 'save-status idle'
+  saveStatusEl.textContent = ''
+  showToast('Novo documento criado.', 'success')
+  editor.focus()
+})
+
+// ─── Importar .md ────────────────────────────────────────────────────────────
+importInput.addEventListener('change', () => {
+  const file = importInput.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const content = e.target?.result as string
+    if (!content) return
+    setEditorContent(editor, content)
+    saveDraft(content)
+    showSaveStatus('saved')
+    showToast(`Arquivo "${file.name}" importado.`, 'success')
+    editor.focus()
+  }
+  reader.readAsText(file)
+  importInput.value = '' // reset para permitir reimportar o mesmo arquivo
 })
 
 // ─── Sidebar toggle ───────────────────────────────────────────────────────────
@@ -154,7 +228,6 @@ document.addEventListener('mouseup', () => {
   if (!dragging) return
   dragging = false
   resizer.classList.remove('dragging')
-  // Re-scale after resize
   const wrapper = previewMount.querySelector<HTMLElement>('.slide-wrapper')
   if (iframe && wrapper) scaleFrame(iframe, wrapper)
 })
@@ -170,14 +243,11 @@ downloadBtn.addEventListener('click', async () => {
   downloadBtn.textContent = 'Gerando…'
 
   try {
-    const md      = editor.state.doc.toString()
+    const md = editor.state.doc.toString()
     const { buffer } = getTemplateState()
-    const result  = await convertToPptx(md, buffer ? { templateBuffer: buffer } : {})
+    const result = await convertToPptx(md, buffer ? { templateBuffer: buffer } : {})
     if (result.overflowed.length > 0) {
-      showToast(
-        `PPTX gerado! Atenção: overflow nos slides ${result.overflowed.join(', ')}.`,
-        'error'
-      )
+      showToast(`PPTX gerado! Atenção: overflow nos slides ${result.overflowed.join(', ')}.`, 'error')
     } else {
       showToast('PPTX gerado com sucesso!', 'success')
     }
@@ -186,6 +256,6 @@ downloadBtn.addEventListener('click', async () => {
     showToast('Erro ao gerar PPTX. Veja o console.', 'error')
   } finally {
     downloadBtn.disabled = false
-    downloadBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PPTX`
+    downloadBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export`
   }
 })

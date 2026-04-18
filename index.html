@@ -75,25 +75,33 @@
         <!-- ── Editor pane ── -->
         <section class="pane pane-editor" id="editor-pane">
           <div class="editor-toolbar">
-            <button class="editor-tool" id="tool-bold"    title="Bold">
+            <button class="editor-tool" id="tool-bold"    title="Negrito (Ctrl+B)">
               <span class="material-symbols-outlined">format_bold</span>
             </button>
-            <button class="editor-tool" id="tool-italic"  title="Italic">
+            <button class="editor-tool" id="tool-italic"  title="Itálico (Ctrl+I)">
               <span class="material-symbols-outlined">format_italic</span>
             </button>
-            <button class="editor-tool" id="tool-heading" title="Heading">
+            <button class="editor-tool" id="tool-heading" title="Título">
               <span class="material-symbols-outlined">title</span>
             </button>
             <div class="tool-sep"></div>
-            <button class="editor-tool" id="tool-list"    title="List">
+            <button class="editor-tool" id="tool-list"    title="Lista">
               <span class="material-symbols-outlined">format_list_bulleted</span>
             </button>
-            <button class="editor-tool" id="tool-image"   title="Image">
+            <button class="editor-tool" id="tool-image"   title="Imagem">
               <span class="material-symbols-outlined">image</span>
             </button>
+            <div class="tool-sep"></div>
+            <button class="editor-tool" id="new-btn" title="Novo documento">
+              <span class="material-symbols-outlined">add</span>
+            </button>
+            <label class="editor-tool" title="Importar arquivo .md">
+              <span class="material-symbols-outlined">folder_open</span>
+              <input id="import-input" type="file" accept=".md,.txt" hidden />
+            </label>
             <div class="tool-spacer"></div>
+            <span id="save-status" class="save-status idle"></span>
             <span id="slide-count" class="badge">1 slide</span>
-            <span class="filename">draft.md</span>
           </div>
           <div id="editor-mount"></div>
         </section>

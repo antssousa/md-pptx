@@ -5,7 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language'
 
-const INITIAL_MD = `---
+export const INITIAL_MD = `---
 marp: true
 ---
 
@@ -49,7 +49,8 @@ Obrigado!
 
 export function createEditor(
   mountEl: HTMLElement,
-  onChange: (value: string) => void
+  onChange: (value: string) => void,
+  initialDoc?: string
 ): EditorView {
   const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged) {
@@ -58,7 +59,7 @@ export function createEditor(
   })
 
   const state = EditorState.create({
-    doc: INITIAL_MD,
+    doc: initialDoc ?? INITIAL_MD,
     extensions: [
       history(),
       lineNumbers(),
@@ -97,6 +98,14 @@ export function insertAround(view: EditorView, before: string, after: string): v
   view.dispatch({
     changes: { from, to, insert: before + selected + after },
     selection: { anchor: from + before.length, head: from + before.length + selected.length },
+  })
+}
+
+/** Replaces the entire editor content. */
+export function setEditorContent(view: EditorView, content: string): void {
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: content },
+    selection: { anchor: 0 },
   })
 }
 
