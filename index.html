@@ -218,6 +218,22 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
+
+    <!-- ── Presentation overlay ──────────────────────────────────────── -->
+    <div id="presentation-overlay" class="presentation-overlay" hidden>
+      <div class="presentation-slide-area" id="presentation-slide-area"></div>
+      <button class="presentation-nav presentation-prev" id="presentation-prev" title="Slide anterior (←)">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <button class="presentation-nav presentation-next" id="presentation-next" title="Próximo slide (→)">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+      <div class="presentation-bar">
+        <span id="presentation-counter" class="presentation-counter">1 / 1</span>
+        <span class="presentation-hint">ESC para sair</span>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

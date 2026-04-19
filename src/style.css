@@ -619,6 +619,92 @@ html, body {
   z-index: 30;
 }
 
+/* ── Presentation overlay ──────────────────────────────────────────────────── */
+.presentation-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.presentation-overlay[hidden] { display: none; }
+
+.presentation-slide-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.presentation-frame {
+  border: none;
+  width: 960px;
+  height: 540px;
+  transform-origin: center center;
+  display: block;
+}
+
+.presentation-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, .08);
+  border: none;
+  color: rgba(255, 255, 255, .6);
+  cursor: pointer;
+  width: 52px;
+  height: 52px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .2s, background .15s, color .15s;
+  z-index: 10;
+}
+.presentation-nav .material-symbols-outlined { font-size: 28px; }
+.presentation-nav:hover { background: rgba(255, 255, 255, .18); color: #fff; }
+.presentation-nav:disabled { opacity: 0 !important; cursor: default; }
+.presentation-overlay:hover .presentation-nav:not(:disabled) { opacity: 1; }
+
+.presentation-prev { left: 24px; }
+.presentation-next { right: 24px; }
+
+.presentation-bar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, .08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 99px;
+  padding: 8px 20px;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+.presentation-overlay:hover .presentation-bar { opacity: 1; }
+
+.presentation-counter {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(255, 255, 255, .8);
+  min-width: 48px;
+  text-align: center;
+}
+
+.presentation-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, .4);
+  white-space: nowrap;
+}
+
 /* ── Responsive: hide sidebar on narrow screens ────────────────────────────── */
 @media (max-width: 900px) {
   .sidebar { display: none; }

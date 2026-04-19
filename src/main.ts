@@ -54,8 +54,14 @@ const toastEl        = document.getElementById('toast')!
 const sidebarToggle  = document.getElementById('sidebar-toggle') as HTMLButtonElement
 const sidebar        = document.getElementById('sidebar')!
 const saveStatusEl   = document.getElementById('save-status')!
-const newBtn         = document.getElementById('new-btn') as HTMLButtonElement
-const importInput    = document.getElementById('import-input') as HTMLInputElement
+const newBtn              = document.getElementById('new-btn') as HTMLButtonElement
+const importInput         = document.getElementById('import-input') as HTMLInputElement
+const presentationOverlay = document.getElementById('presentation-overlay')!
+const presentationSlideArea = document.getElementById('presentation-slide-area')!
+const presentationCounter = document.getElementById('presentation-counter')!
+const presentationPrevBtn = document.getElementById('presentation-prev') as HTMLButtonElement
+const presentationNextBtn = document.getElementById('presentation-next') as HTMLButtonElement
+const btnPlay             = document.getElementById('btn-play') as HTMLButtonElement
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let currentSlides: string[] = []
@@ -321,6 +327,7 @@ prevBtn.addEventListener('click', () => showSlide(currentSlide - 1))
 nextBtn.addEventListener('click', () => showSlide(currentSlide + 1))
 
 document.addEventListener('keydown', (e) => {
+  if (!presentationOverlay.hidden) return // presentation mode handles its own keys
   if (e.target instanceof HTMLElement && e.target.closest('.cm-editor')) return
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') showSlide(currentSlide + 1)
   if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   showSlide(currentSlide - 1)
@@ -360,6 +367,78 @@ document.addEventListener('mouseup', () => {
 // ─── Template loader ─────────────────────────────────────────────────────────
 setupTemplateLoader(templateInput, templateBadge, (name) => {
   showToast(`Template carregado: ${name}`, 'success')
+})
+
+// ─── Presentation mode ───────────────────────────────────────────────────────
+let presentationSlide = 0
+let presentationIframe: HTMLIFrameElement | null = null
+
+function scalePresentationFrame(): void {
+  if (!presentationIframe) return
+  const scale = Math.min(window.innerWidth / 960, window.innerHeight / 540)
+  presentationIframe.style.transform = `scale(${scale})`
+}
+
+function showPresentationSlide(index: number): void {
+  if (!currentSlides.length) return
+  presentationSlide = Math.max(0, Math.min(index, currentSlides.length - 1))
+
+  if (!presentationIframe) {
+    presentationIframe = document.createElement('iframe')
+    presentationIframe.className = 'presentation-frame'
+    presentationIframe.setAttribute('sandbox', 'allow-same-origin')
+    presentationIframe.setAttribute('title', 'Slide em apresentação')
+    presentationSlideArea.appendChild(presentationIframe)
+  }
+
+  mountSlideInFrame(presentationIframe, currentSlides[presentationSlide], currentCss)
+  scalePresentationFrame()
+
+  presentationCounter.textContent = `${presentationSlide + 1} / ${currentSlides.length}`
+  presentationPrevBtn.disabled = presentationSlide === 0
+  presentationNextBtn.disabled = presentationSlide === currentSlides.length - 1
+}
+
+function enterPresentation(): void {
+  if (!currentSlides.length) {
+    showToast('Nenhum slide para apresentar.', 'error')
+    return
+  }
+  presentationOverlay.hidden = false
+  showPresentationSlide(currentSlide)
+  document.documentElement.requestFullscreen?.().catch(() => { /* fullscreen denied — overlay still shows */ })
+}
+
+function exitPresentation(): void {
+  presentationOverlay.hidden = true
+  if (document.fullscreenElement) document.exitFullscreen?.()
+}
+
+btnPlay.addEventListener('click', () => enterPresentation())
+presentationPrevBtn.addEventListener('click', () => showPresentationSlide(presentationSlide - 1))
+presentationNextBtn.addEventListener('click', () => showPresentationSlide(presentationSlide + 1))
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !presentationOverlay.hidden) {
+    presentationOverlay.hidden = true
+  }
+})
+
+document.addEventListener('keydown', (e) => {
+  if (presentationOverlay.hidden) return
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+    e.preventDefault()
+    showPresentationSlide(presentationSlide + 1)
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    showPresentationSlide(presentationSlide - 1)
+  } else if (e.key === 'Escape') {
+    exitPresentation()
+  }
+})
+
+window.addEventListener('resize', () => {
+  if (!presentationOverlay.hidden) scalePresentationFrame()
 })
 
 // ─── Export PDF ──────────────────────────────────────────────────────────────
