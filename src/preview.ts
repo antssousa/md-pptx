@@ -1,5 +1,6 @@
 import Marp from '@marp-team/marp-core'
 import DOMPurify from 'dompurify'
+import { DEFAULT_THEME, type Theme } from './themes'
 
 // html: true permite que o pré-processador injete divs para two-column.
 // DOMPurify sanitiza o output, então não há risco de XSS.
@@ -146,7 +147,7 @@ export function preprocessLayoutDirectives(md: string): string {
 
 // ─── renderMarkdown ────────────────────────────────────────────────────────────
 
-export function renderMarkdown(md: string): RenderResult {
+export function renderMarkdown(md: string, theme: Theme = DEFAULT_THEME): RenderResult {
   let result: { html: string; css: string }
 
   try {
@@ -186,7 +187,7 @@ export function renderMarkdown(md: string): RenderResult {
 
   return {
     slides: slides.length ? slides : [''],
-    css: result.css + LAYOUT_CSS,
+    css: result.css + LAYOUT_CSS + theme.colors.previewCss,
     count: slides.length,
   }
 }

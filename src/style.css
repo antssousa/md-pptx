@@ -318,6 +318,76 @@ html, body {
 
 .tool-spacer { flex: 1; }
 
+/* ── Layout dropdown ── */
+.layout-dropdown {
+  position: relative;
+}
+
+.layout-trigger {
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+}
+
+.layout-label {
+  font-size: 12px;
+}
+
+.layout-arrow {
+  font-size: 16px !important;
+  transition: transform .15s;
+}
+
+.layout-dropdown.open .layout-arrow {
+  transform: rotate(180deg);
+}
+
+.layout-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface-container);
+  border: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
+  border-radius: 10px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
+
+.layout-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  text-align: left;
+  transition: background .1s, color .1s;
+  white-space: nowrap;
+}
+.layout-menu-item .material-symbols-outlined { font-size: 16px; }
+.layout-menu-item:hover {
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
+  color: var(--on-surface);
+}
+
+.layout-menu-sep {
+  height: 1px;
+  background: color-mix(in srgb, var(--outline-variant) 40%, transparent);
+  margin: 2px 4px;
+}
+
 .badge {
   background: var(--secondary-container);
   color: var(--on-secondary-container);
@@ -553,4 +623,68 @@ html, body {
 @media (max-width: 900px) {
   .sidebar { display: none; }
   .topbar-nav { display: none; }
+}
+
+/* ── Sidebar section (theme picker, etc.) ──────────────────────────────────── */
+.sidebar-section {
+  margin-top: 16px;
+  padding: 0 16px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--outline-variant) 35%, transparent);
+}
+
+.sidebar-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--outline);
+  padding: 12px 8px 8px;
+}
+.sidebar-section-label .material-symbols-outlined {
+  font-size: 15px;
+}
+
+/* ── Theme picker ──────────────────────────────────────────────────────────── */
+.theme-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.theme-btn:hover {
+  background: var(--surface-container);
+  color: var(--on-surface);
+}
+.theme-btn.active {
+  background: var(--surface-container);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.theme-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid;
+  flex-shrink: 0;
 }

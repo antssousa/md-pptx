@@ -36,6 +36,10 @@
           <input id="template-input" type="file" accept=".pptx" hidden />
         </label>
         <span id="template-name" class="template-badge" hidden></span>
+        <button id="pdf-btn" class="btn btn-ghost" title="Exportar PDF">
+          <span class="material-symbols-outlined">picture_as_pdf</span>
+          PDF
+        </button>
         <button id="download-btn" class="btn btn-primary" title="Exportar PPTX">
           <span class="material-symbols-outlined">download</span>
           Export
@@ -67,6 +71,27 @@
             Archive
           </a>
         </nav>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-label">
+            <span class="material-symbols-outlined">palette</span>
+            Tema
+          </div>
+          <div class="theme-picker" id="theme-picker">
+            <button class="theme-btn active" data-theme="dark-catppuccin">
+              <span class="theme-swatch" style="background:#1e1e2e; border-color:#313244"></span>
+              <span>Dark Catppuccin</span>
+            </button>
+            <button class="theme-btn" data-theme="corporate-clean">
+              <span class="theme-swatch" style="background:#ffffff; border-color:#2563eb"></span>
+              <span>Corporate Clean</span>
+            </button>
+            <button class="theme-btn" data-theme="minimal-light">
+              <span class="theme-swatch" style="background:#fafafa; border-color:#d1d5db"></span>
+              <span>Minimal Light</span>
+            </button>
+          </div>
+        </div>
       </aside>
 
       <!-- Editor + Preview split -->
@@ -92,6 +117,41 @@
               <span class="material-symbols-outlined">image</span>
             </button>
             <div class="tool-sep"></div>
+            <div class="layout-dropdown" id="layout-dropdown">
+              <button class="editor-tool layout-trigger" id="layout-btn" title="Inserir diretiva de layout">
+                <span class="material-symbols-outlined">view_quilt</span>
+                <span class="layout-label">Layout</span>
+                <span class="material-symbols-outlined layout-arrow">expand_more</span>
+              </button>
+              <div class="layout-menu" id="layout-menu" hidden>
+                <button class="layout-menu-item" data-layout="default">
+                  <span class="material-symbols-outlined">crop_din</span>
+                  Default
+                </button>
+                <button class="layout-menu-item" data-layout="two-column">
+                  <span class="material-symbols-outlined">view_column</span>
+                  Two-column
+                </button>
+                <button class="layout-menu-item" data-layout="blank">
+                  <span class="material-symbols-outlined">check_box_outline_blank</span>
+                  Blank
+                </button>
+                <button class="layout-menu-item" data-layout="title-only">
+                  <span class="material-symbols-outlined">title</span>
+                  Title only
+                </button>
+                <button class="layout-menu-item" data-layout="caption">
+                  <span class="material-symbols-outlined">subtitles</span>
+                  Caption
+                </button>
+                <div class="layout-menu-sep"></div>
+                <button class="layout-menu-item" id="tool-col">
+                  <span class="material-symbols-outlined">vertical_split</span>
+                  Insert col break
+                </button>
+              </div>
+            </div>
+            <div class="tool-sep"></div>
             <button class="editor-tool" id="new-btn" title="Novo documento">
               <span class="material-symbols-outlined">add</span>
             </button>
@@ -99,6 +159,9 @@
               <span class="material-symbols-outlined">folder_open</span>
               <input id="import-input" type="file" accept=".md,.txt" hidden />
             </label>
+            <button class="editor-tool" id="share-btn" title="Copiar link compartilhável">
+              <span class="material-symbols-outlined">share</span>
+            </button>
             <div class="tool-spacer"></div>
             <span id="save-status" class="save-status idle"></span>
             <span id="slide-count" class="badge">1 slide</span>
@@ -120,7 +183,7 @@
             </div>
             <div class="preview-tags">
               <span class="preview-tag">16:9</span>
-              <span class="preview-tag">Dark Theme</span>
+              <span class="preview-tag" id="theme-badge">Dark Catppuccin</span>
             </div>
           </div>
 

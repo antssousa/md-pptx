@@ -1,8 +1,26 @@
 import './style.css'
-import { createEditor, insertAround, insertAtLineStart, setEditorContent, INITIAL_MD } from './editor'
+import { createEditor, insertAround, insertAtLineStart, insertLine, setEditorContent, INITIAL_MD } from './editor'
 import { renderMarkdown, mountSlideInFrame, createSlideFrame, scaleFrame } from './preview'
 import { convertToPptx } from './converter'
 import { setupTemplateLoader, getTemplateState } from './template'
+import { THEMES, getTheme, DEFAULT_THEME, type Theme } from './themes'
+
+// ─── URL hash sharing ────────────────────────────────────────────────────────
+const HASH_PREFIX = 'md='
+
+function encodeToHash(md: string): string {
+  return HASH_PREFIX + btoa(encodeURIComponent(md))
+}
+
+function decodeFromHash(): string | null {
+  try {
+    const hash = window.location.hash.slice(1) // remove '#'
+    if (!hash.startsWith(HASH_PREFIX)) return null
+    return decodeURIComponent(atob(hash.slice(HASH_PREFIX.length)))
+  } catch {
+    return null
+  }
+}
 
 // ─── Auto-save ───────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'md-pptx-draft'
@@ -23,6 +41,7 @@ function clearDraft(): void {
 const editorMount    = document.getElementById('editor-mount')!
 const previewMount   = document.getElementById('preview-mount')!
 const downloadBtn    = document.getElementById('download-btn') as HTMLButtonElement
+const pdfBtn         = document.getElementById('pdf-btn') as HTMLButtonElement
 const templateInput  = document.getElementById('template-input') as HTMLInputElement
 const templateBadge  = document.getElementById('template-name') as HTMLElement
 const slideCountEl   = document.getElementById('slide-count')!
@@ -43,6 +62,18 @@ let currentSlides: string[] = []
 let currentCss    = ''
 let currentSlide  = 0
 let iframe: HTMLIFrameElement | null = null
+
+// ─── Theme state ─────────────────────────────────────────────────────────────
+const THEME_STORAGE_KEY = 'md-pptx-theme'
+
+function loadSavedTheme(): Theme {
+  try {
+    const id = localStorage.getItem(THEME_STORAGE_KEY)
+    return id ? getTheme(id) : DEFAULT_THEME
+  } catch { return DEFAULT_THEME }
+}
+
+let currentTheme: Theme = loadSavedTheme()
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -117,7 +148,7 @@ const handleMdChange = debounce((md: string) => {
   showSaveStatus('saved')
 
   // Preview
-  const result = renderMarkdown(md)
+  const result = renderMarkdown(md, currentTheme)
   currentSlides = result.slides
   currentCss    = result.css
   if (currentSlide >= result.count) currentSlide = result.count - 1
@@ -125,10 +156,16 @@ const handleMdChange = debounce((md: string) => {
 }, 300)
 
 // ─── Editor init ─────────────────────────────────────────────────────────────
-const savedDraft = loadDraft()
+const sharedContent = decodeFromHash()
+const savedDraft    = sharedContent ?? loadDraft()
 const editor = createEditor(editorMount, handleMdChange, savedDraft ?? undefined)
 
-if (savedDraft) {
+if (sharedContent) {
+  // Persiste o conteúdo compartilhado como rascunho e limpa o hash da URL
+  saveDraft(sharedContent)
+  history.replaceState(null, '', window.location.pathname + window.location.search)
+  showToast('Apresentação carregada via link compartilhado.', 'success')
+} else if (savedDraft) {
   showToast('Rascunho restaurado automaticamente.', 'success')
 }
 
@@ -183,10 +220,98 @@ importInput.addEventListener('change', () => {
   importInput.value = '' // reset para permitir reimportar o mesmo arquivo
 })
 
+// ─── Compartilhar via URL ────────────────────────────────────────────────────
+document.getElementById('share-btn')?.addEventListener('click', () => {
+  const md      = editor.state.doc.toString()
+  const hash    = encodeToHash(md)
+  const url     = `${window.location.origin}${window.location.pathname}${window.location.search}#${hash}`
+
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('Link copiado para a área de transferência!', 'success')
+  }).catch(() => {
+    // fallback: mostra a URL num prompt para o usuário copiar manualmente
+    prompt('Copie o link abaixo:', url)
+  })
+})
+
+// ─── Layout dropdown ──────────────────────────────────────────────────────────
+const layoutDropdown = document.getElementById('layout-dropdown')!
+const layoutBtn      = document.getElementById('layout-btn') as HTMLButtonElement
+const layoutMenu     = document.getElementById('layout-menu') as HTMLElement
+
+function openLayoutMenu() {
+  layoutMenu.hidden = false
+  layoutDropdown.classList.add('open')
+}
+
+function closeLayoutMenu() {
+  layoutMenu.hidden = true
+  layoutDropdown.classList.remove('open')
+}
+
+layoutBtn.addEventListener('click', (e) => {
+  e.stopPropagation()
+  if (layoutMenu.hidden) openLayoutMenu()
+  else closeLayoutMenu()
+})
+
+document.addEventListener('click', () => closeLayoutMenu())
+layoutMenu.addEventListener('click', (e) => e.stopPropagation())
+
+layoutMenu.querySelectorAll<HTMLButtonElement>('.layout-menu-item[data-layout]').forEach((item) => {
+  item.addEventListener('click', () => {
+    const layout = item.dataset.layout!
+    if (layout === 'default') {
+      // Remove qualquer diretiva de layout existente; não insere nada
+      insertLine(editor, '<!-- layout: default -->')
+    } else {
+      insertLine(editor, `<!-- layout: ${layout} -->`)
+    }
+    closeLayoutMenu()
+    editor.focus()
+  })
+})
+
+document.getElementById('tool-col')?.addEventListener('click', () => {
+  insertLine(editor, '<!-- col -->')
+  closeLayoutMenu()
+  editor.focus()
+})
+
 // ─── Sidebar toggle ───────────────────────────────────────────────────────────
 sidebarToggle.addEventListener('click', () => {
   sidebar.classList.toggle('collapsed')
 })
+
+// ─── Theme picker ────────────────────────────────────────────────────────────
+const themeBadgeEl = document.getElementById('theme-badge')
+
+function applyThemeSelection(theme: Theme) {
+  currentTheme = theme
+  try { localStorage.setItem(THEME_STORAGE_KEY, theme.id) } catch { /* quota */ }
+
+  // Update active button
+  document.querySelectorAll<HTMLButtonElement>('.theme-btn[data-theme]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme.id)
+  })
+
+  // Update preview badge
+  if (themeBadgeEl) themeBadgeEl.textContent = theme.name
+
+  // Re-render preview
+  handleMdChange(editor.state.doc.toString())
+}
+
+// Sync initial active state with saved theme
+document.querySelectorAll<HTMLButtonElement>('.theme-btn[data-theme]').forEach(btn => {
+  btn.classList.toggle('active', btn.dataset.theme === currentTheme.id)
+  btn.addEventListener('click', () => {
+    const theme = THEMES.find(t => t.id === btn.dataset.theme)
+    if (theme) applyThemeSelection(theme)
+  })
+})
+
+if (themeBadgeEl) themeBadgeEl.textContent = currentTheme.name
 
 // Initial render
 handleMdChange(editor.state.doc.toString())
@@ -237,6 +362,73 @@ setupTemplateLoader(templateInput, templateBadge, (name) => {
   showToast(`Template carregado: ${name}`, 'success')
 })
 
+// ─── Export PDF ──────────────────────────────────────────────────────────────
+function exportPdf(): void {
+  if (!currentSlides.length) {
+    showToast('Nenhum slide para exportar.', 'error')
+    return
+  }
+
+  const win = window.open('', '_blank')
+  if (!win) {
+    showToast('Pop-up bloqueado. Permita pop-ups para exportar PDF.', 'error')
+    return
+  }
+
+  const slidesHtml = currentSlides
+    .map(html => `<div class="slide-page">${html}</div>`)
+    .join('\n')
+
+  const content = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Exportar PDF — Syntax Gallery</title>
+<style>
+@page { size: 960px 540px; margin: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: white; }
+.slide-page {
+  width: 960px;
+  height: 540px;
+  overflow: hidden;
+  page-break-after: always;
+  break-after: page;
+  position: relative;
+}
+.slide-page:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+section {
+  width: 960px !important;
+  height: 540px !important;
+  position: relative;
+  overflow: hidden;
+}
+${currentCss}
+</style>
+</head>
+<body>
+${slidesHtml}
+</body>
+</html>`
+
+  win.document.open()
+  win.document.write(content)
+  win.document.close()
+
+  // Aguarda o documento renderizar antes de abrir o diálogo de impressão
+  setTimeout(() => {
+    win.print()
+    win.close()
+  }, 400)
+}
+
+pdfBtn.addEventListener('click', () => {
+  exportPdf()
+})
+
 // ─── Download PPTX ───────────────────────────────────────────────────────────
 downloadBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true
@@ -245,7 +437,10 @@ downloadBtn.addEventListener('click', async () => {
   try {
     const md = editor.state.doc.toString()
     const { buffer } = getTemplateState()
-    const result = await convertToPptx(md, buffer ? { templateBuffer: buffer } : {})
+    const result = await convertToPptx(md, buffer
+      ? { templateBuffer: buffer, theme: currentTheme }
+      : { theme: currentTheme }
+    )
     if (result.overflowed.length > 0) {
       showToast(`PPTX gerado! Atenção: overflow nos slides ${result.overflowed.join(', ')}.`, 'error')
     } else {

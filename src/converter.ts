@@ -3,6 +3,7 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
 import type { Root, RootContent, PhrasingContent, TableRow, List, ListItem } from 'mdast'
+import { DEFAULT_THEME, type Theme, type ThemeColors } from './themes'
 
 // ─── Slide dimensions (inches, 16:9) ─────────────────────────────────────────
 const SLIDE_W = 10
@@ -116,23 +117,24 @@ export function extractText(nodes: PhrasingContent[]): string {
   }).join('')
 }
 
-export function phrasingToRuns(nodes: PhrasingContent[]): PptxGenJS.TextProps[] {
+export function phrasingToRuns(nodes: PhrasingContent[], colors?: ThemeColors): PptxGenJS.TextProps[] {
+  const inlineCodeColor = colors?.inlineCodeColor ?? '89b4fa'
   const runs: PptxGenJS.TextProps[] = []
   for (const node of nodes) {
     if (node.type === 'text') {
       runs.push({ text: node.value })
     } else if (node.type === 'strong') {
-      const inner = phrasingToRuns(node.children)
+      const inner = phrasingToRuns(node.children, colors)
       inner.forEach(r => { r.options = { ...(r.options ?? {}), bold: true } })
       runs.push(...inner)
     } else if (node.type === 'emphasis') {
-      const inner = phrasingToRuns(node.children)
+      const inner = phrasingToRuns(node.children, colors)
       inner.forEach(r => { r.options = { ...(r.options ?? {}), italic: true } })
       runs.push(...inner)
     } else if (node.type === 'inlineCode') {
-      runs.push({ text: node.value, options: { fontFace: 'Courier New', color: '89b4fa' } })
+      runs.push({ text: node.value, options: { fontFace: 'Courier New', color: inlineCodeColor } })
     } else if ('children' in node) {
-      runs.push(...phrasingToRuns(node.children as PhrasingContent[]))
+      runs.push(...phrasingToRuns(node.children as PhrasingContent[], colors))
     }
   }
   return runs
@@ -234,6 +236,7 @@ async function renderContentNodes(
   slide: PptxGenJS.Slide,
   nodes: RootContent[],
   area: Area,
+  colors: ThemeColors,
 ): Promise<boolean> {
   let cursorY = area.y
   const maxY  = area.y + area.h
@@ -247,7 +250,7 @@ async function renderContentNodes(
       slide.addText(text, {
         x: area.x, y: cursorY, w: area.w, h: 0.45,
         fontSize: node.depth <= 2 ? 22 : 18,
-        bold: true, color: '313244', fontFace: 'Calibri',
+        bold: true, color: colors.bodyColor, fontFace: 'Calibri',
       })
       cursorY += 0.5
       continue
@@ -289,14 +292,14 @@ async function renderContentNodes(
 
     // ── Regular paragraph ──
     if (node.type === 'paragraph') {
-      const runs   = phrasingToRuns(node.children as PhrasingContent[])
+      const runs   = phrasingToRuns(node.children as PhrasingContent[], colors)
       const text   = runs.map(r => r.text).join('')
       const lines  = Math.max(1, Math.ceil(text.length / 80))
       const fs     = calcFontSize(lines, 18, maxY - cursorY)
       const blockH = Math.min(lines * (fs / 72) * 1.5, maxY - cursorY)
       slide.addText(runs, {
         x: area.x, y: cursorY, w: area.w, h: blockH,
-        fontSize: fs, color: '313244', fontFace: 'Calibri', wrap: true,
+        fontSize: fs, color: colors.bodyColor, fontFace: 'Calibri', wrap: true,
       })
       cursorY += blockH + 0.1
       continue
@@ -310,7 +313,7 @@ async function renderContentNodes(
       const blockH = Math.min(nItems * (fs / 72) * 1.6, maxY - cursorY)
       slide.addText(runs, {
         x: area.x, y: cursorY, w: area.w, h: blockH,
-        fontSize: fs, color: '313244', fontFace: 'Calibri',
+        fontSize: fs, color: colors.bodyColor, fontFace: 'Calibri',
       })
       cursorY += blockH + 0.1
       continue
@@ -324,7 +327,7 @@ async function renderContentNodes(
       slide.addText(node.value, {
         x: area.x, y: cursorY, w: area.w, h: blockH,
         fontSize: fs, fontFace: 'Courier New',
-        color: 'cdd6f4', fill: { color: '27273a' }, wrap: true,
+        color: colors.codeText, fill: { color: colors.codeBackground }, wrap: true,
       })
       cursorY += blockH + 0.15
       continue
@@ -340,11 +343,13 @@ async function renderContentNodes(
           text: extractText(cell.children as PhrasingContent[]),
           options: {
             bold:     rowIdx === 0,
-            fill:     rowIdx === 0 ? { color: '89b4fa' } : { color: 'FFFFFF' },
-            color:    rowIdx === 0 ? '11111b' : '313244',
+            fill:     rowIdx === 0
+              ? { color: colors.tableHeaderFill }
+              : { color: colors.background },
+            color:    rowIdx === 0 ? colors.tableHeaderText : colors.bodyColor,
             fontSize: 14,
             align:    'center' as const,
-            border:   { pt: 1, color: 'e0e0e0' } as PptxGenJS.BorderProps,
+            border:   { pt: 1, color: colors.dividerColor } as PptxGenJS.BorderProps,
           },
         }))
       )
@@ -371,7 +376,7 @@ async function renderContentNodes(
       const blockH = Math.min(lines * (fs / 72) * 1.5, maxY - cursorY)
       slide.addText(text, {
         x: area.x + 0.3, y: cursorY, w: area.w - 0.3, h: blockH,
-        fontSize: fs, italic: true, color: '585b70', fontFace: 'Calibri', wrap: true,
+        fontSize: fs, italic: true, color: colors.mutedColor, fontFace: 'Calibri', wrap: true,
       })
       cursorY += blockH + 0.1
       continue
@@ -388,12 +393,13 @@ function addTitleText(
   nodes: PhrasingContent[],
   area: Area,
   depth: number,
+  colors: ThemeColors,
   opts: Partial<PptxGenJS.TextPropsOptions> = {}
 ) {
   slide.addText(extractText(nodes), {
     x: area.x, y: area.y, w: area.w, h: area.h,
     fontSize: depth === 1 ? 36 : 28,
-    bold: true, color: '1e1e2e', fontFace: 'Calibri',
+    bold: true, color: colors.titleColor, fontFace: 'Calibri',
     ...opts,
   })
 }
@@ -405,9 +411,10 @@ async function buildSlide(
   allNodes: RootContent[],
   slideIndex: number,
   layout: LayoutType,
+  colors: ThemeColors,
 ): Promise<boolean> {
   const slide = pptx.addSlide()
-  slide.background = { color: 'FFFFFF' }
+  slide.background = { color: colors.background }
 
   const geo   = LAYOUTS[layout]
   const nodes = filterDirectives(allNodes)
@@ -415,7 +422,7 @@ async function buildSlide(
   // Page number (shared across all layouts)
   slide.addText(`${slideIndex + 1}`, {
     x: SLIDE_W - 0.7, y: SLIDE_H - 0.35, w: 0.5, h: 0.25,
-    fontSize: 10, color: 'a6adc8', align: 'right',
+    fontSize: 10, color: colors.mutedColor, align: 'right',
   })
 
   let didOverflow = false
@@ -425,7 +432,7 @@ async function buildSlide(
     // ── blank: no title area, content fills the slide ──────────────────────
     case 'blank': {
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, nodes, geo.content)
+        didOverflow = await renderContentNodes(slide, nodes, geo.content, colors)
       }
       break
     }
@@ -434,7 +441,7 @@ async function buildSlide(
     case 'title-only': {
       const heading = nodes.find(n => n.type === 'heading')
       if (geo.title && heading?.type === 'heading') {
-        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth, {
+        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth, colors, {
           fontSize: 40, align: 'center', valign: 'middle',
         })
       }
@@ -448,18 +455,18 @@ async function buildSlide(
       const bodyNodes  = nodes.filter((_, i) => i !== headingIdx)
 
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content)
+        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors)
       }
       if (geo.caption && heading?.type === 'heading') {
         // Thin accent line above caption
         slide.addShape(pptx.ShapeType.line, {
           x: MARGIN, y: geo.caption.y - 0.1,
           w: SLIDE_W - MARGIN * 2, h: 0,
-          line: { color: '89b4fa', width: 1.5 },
+          line: { color: colors.accentColor, width: 1.5 },
         })
         slide.addText(extractText(heading.children as PhrasingContent[]), {
           x: geo.caption.x, y: geo.caption.y, w: geo.caption.w, h: geo.caption.h,
-          fontSize: 24, bold: true, color: '1e1e2e', fontFace: 'Calibri',
+          fontSize: 24, bold: true, color: colors.titleColor, fontFace: 'Calibri',
         })
       }
       break
@@ -475,22 +482,22 @@ async function buildSlide(
       const [col1, col2] = splitAtCol(bodyNodes)
 
       if (geo.title && heading?.type === 'heading') {
-        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth)
+        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth, colors)
       }
 
       // Vertical divider
       slide.addShape(pptx.ShapeType.line, {
         x: MARGIN + COL_W + COL_GAP / 2, y: BODY_TOP,
         w: 0, h: BODY_H,
-        line: { color: 'e0e0e0', width: 1 },
+        line: { color: colors.dividerColor, width: 1 },
       })
 
       if (geo.col1) {
-        const o1 = await renderContentNodes(slide, col1, geo.col1)
+        const o1 = await renderContentNodes(slide, col1, geo.col1, colors)
         if (o1) didOverflow = true
       }
       if (geo.col2) {
-        const o2 = await renderContentNodes(slide, col2, geo.col2)
+        const o2 = await renderContentNodes(slide, col2, geo.col2, colors)
         if (o2) didOverflow = true
       }
       break
@@ -505,10 +512,10 @@ async function buildSlide(
       const bodyNodes = nodes.filter((_, i) => i !== headingIdx)
 
       if (geo.title && heading?.type === 'heading') {
-        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth)
+        addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth, colors)
       }
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content)
+        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors)
       }
       break
     }
@@ -538,6 +545,7 @@ export function splitBySlides(ast: Root): RootContent[][] {
 
 export interface ConvertOptions {
   templateBuffer?: ArrayBuffer
+  theme?: Theme
 }
 
 export interface ConvertResult {
@@ -570,10 +578,11 @@ export async function convertToPptx(
     slideGroups.push([{ type: 'paragraph', children: [{ type: 'text', value: '' }] }])
   }
 
+  const colors = (options.theme ?? DEFAULT_THEME).colors
   const overflowed: number[] = []
   for (let i = 0; i < slideGroups.length; i++) {
     const layout     = extractLayout(slideGroups[i])
-    const didOverflow = await buildSlide(pptx, slideGroups[i], i, layout)
+    const didOverflow = await buildSlide(pptx, slideGroups[i], i, layout, colors)
     if (didOverflow) overflowed.push(i + 1)
   }
 

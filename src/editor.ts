@@ -118,3 +118,13 @@ export function insertAtLineStart(view: EditorView, prefix: string): void {
     selection: { anchor: line.from + prefix.length },
   })
 }
+
+/** Inserts a full line at the cursor position (end of current line). */
+export function insertLine(view: EditorView, text: string): void {
+  const { from } = view.state.selection.main
+  const line = view.state.doc.lineAt(from)
+  view.dispatch({
+    changes: { from: line.from, insert: text + '\n' },
+    selection: { anchor: line.from + text.length + 1 },
+  })
+}
