@@ -45,8 +45,12 @@ const prevBtn        = document.getElementById('prev-slide') as HTMLButtonElemen
 const nextBtn        = document.getElementById('next-slide') as HTMLButtonElement
 const resizer        = document.getElementById('resizer')!
 const editorPane     = document.getElementById('editor-pane')!
+const workspaceTabButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab-btn[data-workspace-tab]'))
+const workspacePanels = Array.from(document.querySelectorAll<HTMLElement>('.workspace-tab-panel[data-tab-panel]'))
 const toastEl        = document.getElementById('toast')!
 const sidebarToggle  = document.getElementById('sidebar-toggle') as HTMLButtonElement
+const appThemeToggle = document.getElementById('app-theme-toggle') as HTMLButtonElement
+const appThemeIcon   = document.getElementById('app-theme-icon') as HTMLElement
 const sidebar        = document.getElementById('sidebar')!
 const saveStatusEl   = document.getElementById('save-status')!
 const newBtn              = document.getElementById('new-btn') as HTMLButtonElement
@@ -59,6 +63,7 @@ const presentationNextBtn = document.getElementById('presentation-next') as HTML
 const btnPlay             = document.getElementById('btn-play') as HTMLButtonElement
 const densityFill         = document.getElementById('density-fill')!
 const densityLabel        = document.getElementById('density-label')!
+const metaThemeColorEl    = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let currentSlides:    string[] = []
@@ -66,9 +71,13 @@ let currentCss      = ''
 let currentSlide    = 0
 let currentDensities: number[] = []
 let iframe: HTMLIFrameElement | null = null
+let activeWorkspaceTab: 'editor' | 'templates' | 'history' = 'editor'
 
 // ─── Theme state ─────────────────────────────────────────────────────────────
 const THEME_STORAGE_KEY = 'md-pptx-theme'
+const APP_THEME_STORAGE_KEY = 'md-pptx-app-theme'
+
+type AppTheme = 'light' | 'dark'
 
 function loadSavedTheme(): Theme {
   try {
@@ -77,7 +86,39 @@ function loadSavedTheme(): Theme {
   } catch { return DEFAULT_THEME }
 }
 
+function loadSavedAppTheme(): AppTheme {
+  try {
+    const saved = localStorage.getItem(APP_THEME_STORAGE_KEY)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch { /* ignore storage access */ }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 let currentTheme: Theme = loadSavedTheme()
+let currentAppTheme: AppTheme = loadSavedAppTheme()
+
+function updateMetaThemeColor(): void {
+  if (!metaThemeColorEl) return
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+  if (bg) metaThemeColorEl.setAttribute('content', bg)
+}
+
+function applyAppTheme(theme: AppTheme): void {
+  currentAppTheme = theme
+  document.documentElement.dataset.appTheme = theme
+
+  try { localStorage.setItem(APP_THEME_STORAGE_KEY, theme) } catch { /* quota */ }
+
+  const isDark = theme === 'dark'
+  appThemeIcon.textContent = isDark ? 'light_mode' : 'dark_mode'
+  const nextLabel = isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'
+  appThemeToggle.title = nextLabel
+  appThemeToggle.setAttribute('aria-label', nextLabel)
+  appThemeToggle.dataset.appTheme = theme
+
+  updateMetaThemeColor()
+}
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -142,6 +183,23 @@ function showSlide(index: number) {
   scaleFrame(iframe!, wrapper!)
   updateSlideNav()
   updateDensityIndicator()
+}
+
+function setActiveWorkspaceTab(tab: 'editor' | 'templates' | 'history'): void {
+  activeWorkspaceTab = tab
+
+  workspaceTabButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.workspaceTab === tab)
+  })
+
+  workspacePanels.forEach((panel) => {
+    panel.hidden = panel.dataset.tabPanel !== tab
+  })
+
+  if (tab === 'editor') {
+    const wrapper = previewMount.querySelector<HTMLElement>('.slide-wrapper')
+    if (iframe && wrapper) scaleFrame(iframe, wrapper)
+  }
 }
 
 // ─── Debounce helper ──────────────────────────────────────────────────────────
@@ -219,6 +277,8 @@ if (sharedContent) {
     setCurrentProjectId(initialProject.id)
   }
 }
+
+applyAppTheme(currentAppTheme)
 
 const editor = createEditor(editorMount, handleMdChange, initialProject.markdown)
 
@@ -356,6 +416,10 @@ sidebarToggle.addEventListener('click', () => {
   sidebar.classList.toggle('collapsed')
 })
 
+appThemeToggle.addEventListener('click', () => {
+  applyAppTheme(currentAppTheme === 'dark' ? 'light' : 'dark')
+})
+
 // ─── Theme picker ────────────────────────────────────────────────────────────
 const themeBadgeEl = document.getElementById('theme-badge')
 
@@ -386,6 +450,17 @@ document.querySelectorAll<HTMLButtonElement>('.theme-btn[data-theme]').forEach(b
 })
 
 if (themeBadgeEl) themeBadgeEl.textContent = currentTheme.name
+
+workspaceTabButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const tab = button.dataset.workspaceTab
+    if (tab === 'editor' || tab === 'templates' || tab === 'history') {
+      setActiveWorkspaceTab(tab)
+    }
+  })
+})
+
+setActiveWorkspaceTab(activeWorkspaceTab)
 
 // Initial render
 handleMdChange(editor.state.doc.toString())

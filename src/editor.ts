@@ -2,7 +2,6 @@ import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirro
 import { EditorState } from '@codemirror/state'
 import { defaultKeymap, historyKeymap, history } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
-import { oneDark } from '@codemirror/theme-one-dark'
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language'
 
 export const INITIAL_MD = `---
@@ -67,17 +66,33 @@ export function createEditor(
       bracketMatching(),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       markdown({ base: markdownLanguage }),
-      oneDark,
       keymap.of([...defaultKeymap, ...historyKeymap]),
       updateListener,
       EditorView.theme({
-        '&': { height: '100%', backgroundColor: '#060e20' },
-        '.cm-content': { caretColor: '#c3c0ff', padding: '12px 0' },
-        '.cm-gutters': { backgroundColor: '#060e20', borderRight: '1px solid #1e2840', color: '#464554' },
-        '.cm-activeLineGutter': { backgroundColor: '#131b2e' },
-        '.cm-activeLine': { backgroundColor: '#131b2e88' },
-        '.cm-cursor': { borderLeftColor: '#c3c0ff' },
-        '.cm-selectionBackground, ::selection': { backgroundColor: '#2d344988' },
+        '&': {
+          height: '100%',
+          backgroundColor: 'var(--editor-bg)',
+          color: 'var(--editor-text)',
+          fontFamily: "'JetBrains Mono', monospace",
+        },
+        '.cm-content': {
+          caretColor: 'var(--accent)',
+          padding: '16px 0',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '12.5px',
+          lineHeight: '1.7',
+        },
+        '.cm-gutters': {
+          backgroundColor: 'var(--editor-gutter-bg)',
+          borderRight: '1px solid var(--editor-gutter-border)',
+          color: 'var(--editor-gutter-text)',
+          fontFamily: "'JetBrains Mono', monospace",
+        },
+        '.cm-activeLineGutter': { backgroundColor: 'var(--editor-active-line)' },
+        '.cm-activeLine': { backgroundColor: 'var(--editor-active-line-soft)' },
+        '.cm-cursor': { borderLeftColor: 'var(--accent)' },
+        '.cm-selectionBackground, ::selection': { backgroundColor: 'var(--editor-selection)' },
+        '.cm-lineNumbers .cm-gutterElement': { paddingRight: '12px' },
       }),
       EditorView.lineWrapping,
     ],

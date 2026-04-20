@@ -1,5 +1,6 @@
 import Marp from '@marp-team/marp-core'
 import DOMPurify from 'dompurify'
+import { getTwoColumnRatioStyle, parseLayoutDirective } from './layout-directives'
 import { DEFAULT_THEME, type Theme, type ThemeColors } from './themes'
 import { renderMermaidSvg, svgToDataUrl } from './mermaid'
 
@@ -52,14 +53,21 @@ section.layout-two-column .col-layout {
   gap: 1.5em;
   margin-top: 0.5em;
   height: calc(100% - 3em);
+  --column-left: 1;
+  --column-right: 1;
 }
 section.layout-two-column .col {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   border-right: 1px solid #${colors.dividerColor};
   padding-right: 1em;
 }
+section.layout-two-column .col:first-child {
+  flex: var(--column-left) 1 0;
+}
 section.layout-two-column .col:last-child {
+  flex: var(--column-right) 1 0;
   border-right: none;
   padding-right: 0;
 }
@@ -97,13 +105,13 @@ export function preprocessLayoutDirectives(md: string): string {
   const slideParts = md.split(/(?:^|\n)---(?:\n|$)/)
 
   const processed = slideParts.map(part => {
-    const layoutMatch = part.match(/<!--\s*layout:\s*(\S+)\s*-->/)
-    if (!layoutMatch) return part
+    const directive = parseLayoutDirective(part)
+    if (!directive) return part
 
-    const layout = layoutMatch[1]
+    const layout = directive.layout
 
     // Substitui a diretiva original pela diretiva de classe Marp
-    let result = part.replace(/[ \t]*<!--\s*layout:\s*\S+\s*-->[ \t]*\n?/, '')
+    let result = part.replace(/[ \t]*<!--\s*layout:\s*\S+(?:\s+\d+\s*\/\s*\d+)?\s*-->[ \t]*\n?/, '')
     result = `<!-- class: layout-${layout} -->\n${result}`
 
     if (layout === 'two-column' && result.includes('<!-- col -->')) {
@@ -119,9 +127,10 @@ export function preprocessLayoutDirectives(md: string): string {
       if (headingMatch) {
         const preamble  = headingMatch[1]  // class-directive + heading line
         const leftBody  = headingMatch[2].trim()
+        const styleAttr = getTwoColumnRatioStyle(directive.twoColumnRatio)
         result = [
           preamble,
-          '<div class="col-layout"><div class="col">',
+          `<div class="col-layout" style="${styleAttr}"><div class="col">`,
           '',
           leftBody,
           '',
@@ -133,9 +142,10 @@ export function preprocessLayoutDirectives(md: string): string {
         ].join('\n')
       } else {
         // Sem heading: envolve todo o conteúdo nas colunas
+        const styleAttr = getTwoColumnRatioStyle(directive.twoColumnRatio)
         result = [
           beforeCol,
-          '<div class="col-layout"><div class="col">',
+          `<div class="col-layout" style="${styleAttr}"><div class="col">`,
           '',
           `</div><div class="col">`,
           '',
@@ -318,8 +328,9 @@ export function createSlideFrame(wrapper: HTMLElement): HTMLIFrameElement {
 }
 
 export function scaleFrame(iframe: HTMLIFrameElement, wrapper: HTMLElement): void {
-  const ww    = wrapper.clientWidth  - 32
-  const wh    = wrapper.clientHeight - 32
-  const scale = Math.min(ww / 960, wh / 540, 1)
+  const viewport = wrapper.parentElement instanceof HTMLElement ? wrapper.parentElement : wrapper
+  const ww = Math.max(viewport.clientWidth - 24, 0)
+  const wh = Math.max(viewport.clientHeight - 24, 0)
+  const scale = Math.min(ww / 960, wh / 540)
   iframe.style.transform = `scale(${scale})`
 }

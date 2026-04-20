@@ -1,35 +1,39 @@
 <!DOCTYPE html>
-<html class="dark" lang="pt-BR">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b1326" />
+    <meta name="theme-color" content="#f9f8f6" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Syntax Gallery — MD → PPTX</title>
+    <title>Syntax Gallery - MD to PPTX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-
-    <!-- ── Top App Bar ───────────────────────────────────────────────── -->
     <header class="topbar">
       <div class="topbar-left">
         <button class="topbar-icon-btn" id="sidebar-toggle" title="Menu">
           <span class="material-symbols-outlined">menu</span>
         </button>
-        <span class="logo">Syntax Gallery</span>
+        <span class="logo">
+          <span class="logo-dot"></span>
+          Syntax Gallery
+        </span>
       </div>
 
-      <nav class="topbar-nav">
-        <a href="#" class="topbar-link active">Editor</a>
-        <a href="#" class="topbar-link">Templates</a>
-        <a href="#" class="topbar-link">History</a>
+      <nav class="topbar-center" aria-label="Workspace tabs">
+        <button class="tab-btn active" type="button" data-workspace-tab="editor">Editor</button>
+        <button class="tab-btn" type="button" data-workspace-tab="templates">Templates</button>
+        <button class="tab-btn" type="button" data-workspace-tab="history">History</button>
       </nav>
 
       <div class="topbar-right">
+        <button class="topbar-icon-btn" id="app-theme-toggle" title="Mudar para modo escuro" aria-label="Mudar para modo escuro">
+          <span class="material-symbols-outlined" id="app-theme-icon">dark_mode</span>
+        </button>
         <label class="btn btn-ghost" title="Carregar template .pptx">
           <span class="material-symbols-outlined">upload_file</span>
           Template
@@ -47,22 +51,21 @@
       </div>
     </header>
 
-    <!-- ── App body ──────────────────────────────────────────────────── -->
-    <div class="app-body">
-
-      <!-- Sidebar -->
+    <div class="app-shell">
       <aside class="sidebar" id="sidebar">
-        <div class="sidebar-label">Gallery Workspace</div>
+        <div class="sidebar-header">
+          <div class="sidebar-label">Workspace</div>
+        </div>
 
         <div class="sidebar-section" id="projects-section">
           <div class="sidebar-section-label">
             <span class="material-symbols-outlined">folder_open</span>
             Projetos
           </div>
-          <div id="project-list" class="project-list">
-            <!-- populated by renderProjectList() in main.ts -->
-          </div>
+          <div id="project-list" class="project-list"></div>
         </div>
+
+        <div class="sidebar-divider"></div>
 
         <div class="sidebar-section">
           <div class="sidebar-section-label">
@@ -86,26 +89,23 @@
         </div>
       </aside>
 
-      <!-- Editor + Preview split -->
       <main class="workspace">
-
-        <!-- ── Editor pane ── -->
         <section class="pane pane-editor" id="editor-pane">
           <div class="editor-toolbar">
-            <button class="editor-tool" id="tool-bold"    title="Negrito (Ctrl+B)">
+            <button class="editor-tool" id="tool-bold" title="Negrito (Ctrl+B)">
               <span class="material-symbols-outlined">format_bold</span>
             </button>
-            <button class="editor-tool" id="tool-italic"  title="Itálico (Ctrl+I)">
+            <button class="editor-tool" id="tool-italic" title="Itálico (Ctrl+I)">
               <span class="material-symbols-outlined">format_italic</span>
             </button>
             <button class="editor-tool" id="tool-heading" title="Título">
               <span class="material-symbols-outlined">title</span>
             </button>
             <div class="tool-sep"></div>
-            <button class="editor-tool" id="tool-list"    title="Lista">
+            <button class="editor-tool" id="tool-list" title="Lista">
               <span class="material-symbols-outlined">format_list_bulleted</span>
             </button>
-            <button class="editor-tool" id="tool-image"   title="Imagem">
+            <button class="editor-tool" id="tool-image" title="Imagem">
               <span class="material-symbols-outlined">image</span>
             </button>
             <div class="tool-sep"></div>
@@ -159,67 +159,83 @@
             </button>
             <div class="tool-spacer"></div>
             <span id="save-status" class="save-status idle"></span>
-            <span id="slide-count" class="badge">1 slide</span>
+            <span id="slide-count" class="slide-badge">1 slide</span>
           </div>
-          <div id="editor-mount"></div>
+          <div class="editor-shell">
+            <section class="workspace-tab-panel" id="workspace-panel-editor" data-tab-panel="editor">
+              <div id="editor-mount"></div>
+            </section>
+
+            <section class="workspace-tab-panel placeholder-panel" id="workspace-panel-templates" data-tab-panel="templates" hidden>
+              <div class="placeholder-panel-content">
+                <span class="placeholder-eyebrow">Templates</span>
+                <h2>Template gallery is not wired yet.</h2>
+                <p>The visual state is ready for the next sprint. The current flow for loading a template remains available in the top bar.</p>
+              </div>
+            </section>
+
+            <section class="workspace-tab-panel placeholder-panel" id="workspace-panel-history" data-tab-panel="history" hidden>
+              <div class="placeholder-panel-content">
+                <span class="placeholder-eyebrow">History</span>
+                <h2>Project history will be expanded later.</h2>
+                <p>The current project list in the sidebar remains the active source of truth. This panel only establishes the visual workspace state.</p>
+              </div>
+            </section>
+          </div>
         </section>
 
-        <!-- Resizer -->
         <div class="resizer" id="resizer" title="Arrastar para redimensionar"></div>
 
-        <!-- ── Preview pane ── -->
         <section class="pane pane-preview" id="preview-pane">
-
-          <!-- Floating top bar (badges) -->
-          <div class="preview-top-bar">
-            <div class="live-badge">
+          <div class="preview-header">
+            <div class="preview-title">
               <span class="live-dot"></span>
               Live Preview
             </div>
-            <div class="preview-tags">
-              <span class="preview-tag">16:9</span>
-              <span class="preview-tag" id="theme-badge">Dark Catppuccin</span>
+            <div class="preview-controls">
+              <span class="preview-chip">16:9</span>
+              <span class="preview-chip" id="theme-badge">Dark Catppuccin</span>
             </div>
           </div>
 
-          <!-- Slide content -->
-          <div id="preview-mount">
-            <div class="preview-empty">
-              <p>Escreva Markdown no editor ao lado.</p>
-              <p>Use <code>---</code> para separar slides.</p>
+          <div class="preview-canvas">
+            <div id="preview-mount">
+              <div class="preview-empty">
+                <p>Escreva Markdown no editor ao lado.</p>
+                <p>Use <code>---</code> para separar slides.</p>
+              </div>
             </div>
           </div>
 
-          <!-- Floating bottom toolbar -->
-          <div class="preview-floating-bar">
-            <button id="prev-slide" class="float-btn" title="Slide anterior">
-              <span class="material-symbols-outlined">chevron_left</span>
-            </button>
+          <div class="preview-nav">
+            <div class="nav-arrows">
+              <button id="prev-slide" class="nav-btn" title="Slide anterior">
+                <span class="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button id="next-slide" class="nav-btn" title="Próximo slide">
+                <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
             <span id="slide-indicator" class="slide-counter">1 / 1</span>
-            <button id="next-slide" class="float-btn" title="Próximo slide">
-              <span class="material-symbols-outlined">chevron_right</span>
-            </button>
-            <div class="float-sep"></div>
-            <span id="density-indicator" class="density-indicator" title="Densidade de conteúdo do slide">
-              <span class="density-bar"><span id="density-fill" class="density-fill"></span></span>
-              <span id="density-label" class="density-label">—</span>
-            </span>
-            <div class="float-sep"></div>
-            <button class="float-btn" id="btn-grid" title="Visão em grade">
-              <span class="material-symbols-outlined">grid_view</span>
-            </button>
-            <button class="float-btn" id="btn-play" title="Apresentar">
-              <span class="material-symbols-outlined">play_arrow</span>
-            </button>
+            <div class="nav-meta">
+              <span id="density-indicator" class="density-indicator" title="Densidade de conteúdo do slide">
+                <span class="density-bar"><span id="density-fill" class="density-fill"></span></span>
+                <span id="density-label" class="density-label">—</span>
+              </span>
+              <button class="nav-btn" id="btn-grid" title="Visão em grade">
+                <span class="material-symbols-outlined">grid_view</span>
+              </button>
+              <button class="nav-btn nav-play" id="btn-play" title="Apresentar">
+                <span class="material-symbols-outlined">play_arrow</span>
+              </button>
+            </div>
           </div>
-
         </section>
       </main>
     </div>
 
     <div id="toast" class="toast" hidden></div>
 
-    <!-- ── Keyboard shortcuts modal ─────────────────────────────────── -->
     <div id="shortcuts-modal" class="modal-overlay" hidden>
       <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Atalhos de teclado">
         <div class="modal-header">
@@ -232,7 +248,6 @@
           </button>
         </div>
         <div class="modal-body">
-
           <div class="shortcut-group">
             <div class="shortcut-group-title">Editor</div>
             <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>B</kbd><span>Negrito</span></div>
@@ -244,13 +259,13 @@
 
           <div class="shortcut-group">
             <div class="shortcut-group-title">Navegação de slides</div>
-            <div class="shortcut-row"><kbd>→</kbd> <kbd>↓</kbd><span>Próximo slide</span></div>
-            <div class="shortcut-row"><kbd>←</kbd> <kbd>↑</kbd><span>Slide anterior</span></div>
+            <div class="shortcut-row"><kbd>→</kbd><kbd>↓</kbd><span>Próximo slide</span></div>
+            <div class="shortcut-row"><kbd>←</kbd><kbd>↑</kbd><span>Slide anterior</span></div>
           </div>
 
           <div class="shortcut-group">
             <div class="shortcut-group-title">Apresentação (modo fullscreen)</div>
-            <div class="shortcut-row"><kbd>Space</kbd> <kbd>→</kbd><span>Próximo slide</span></div>
+            <div class="shortcut-row"><kbd>Space</kbd><kbd>→</kbd><span>Próximo slide</span></div>
             <div class="shortcut-row"><kbd>←</kbd><span>Slide anterior</span></div>
             <div class="shortcut-row"><kbd>Esc</kbd><span>Sair da apresentação</span></div>
           </div>
@@ -260,12 +275,10 @@
             <div class="shortcut-row"><kbd>?</kbd><span>Abrir este painel</span></div>
             <div class="shortcut-row"><kbd>Esc</kbd><span>Fechar modais</span></div>
           </div>
-
         </div>
       </div>
     </div>
 
-    <!-- ── Presentation overlay ──────────────────────────────────────── -->
     <div id="presentation-overlay" class="presentation-overlay" hidden>
       <div class="presentation-slide-area" id="presentation-slide-area"></div>
       <button class="presentation-nav presentation-prev" id="presentation-prev" title="Slide anterior (←)">

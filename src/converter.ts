@@ -1,11 +1,17 @@
-import PptxGenJS from 'pptxgenjs'
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import remarkGfm from 'remark-gfm'
-import { createHighlighter, type Highlighter, type BundledLanguage, type BundledTheme } from 'shiki'
 import type { Root, RootContent, PhrasingContent, TableRow, List, ListItem } from 'mdast'
+import type PptxGenJS from 'pptxgenjs'
+import type { Highlighter, BundledLanguage, BundledTheme } from 'shiki'
+import {
+  DEFAULT_TWO_COLUMN_RATIO,
+  parseLayoutDirective,
+  type LayoutType,
+  type TwoColumnRatio,
+} from './layout-directives'
 import { DEFAULT_THEME, type Theme, type ThemeColors } from './themes'
-import { renderMermaidSvg, svgToDataUrl } from './mermaid'
+import { extractSvgAspectRatio, renderMermaidSvg, svgToDataUrl } from './mermaid'
 
 // ─── Slide dimensions (inches, 16:9) ─────────────────────────────────────────
 const SLIDE_W = 10
@@ -26,7 +32,12 @@ const MARGIN  = 0.5
  * | title-only  | Só o título, centralizado verticalmente                |
  * | caption     | Conteúdo/imagem no topo, título como legenda no rodapé |
  */
-export type LayoutType = 'default' | 'two-column' | 'blank' | 'title-only' | 'caption'
+export type { LayoutType } from './layout-directives'
+
+export interface LayoutConfig {
+  layout: LayoutType
+  twoColumnRatio?: TwoColumnRatio
+}
 
 interface Area { x: number; y: number; w: number; h: number }
 
@@ -77,13 +88,25 @@ const LAYOUTS: Record<LayoutType, {
 
 /** Lê o tipo de layout a partir de `<!-- layout: TYPE -->` nos nós do slide */
 export function extractLayout(nodes: RootContent[]): LayoutType {
+  return extractLayoutConfig(nodes).layout
+}
+
+export function extractLayoutConfig(nodes: RootContent[]): LayoutConfig {
   for (const node of nodes) {
     if (node.type === 'html') {
-      const m = node.value.match(/<!--\s*layout:\s*(\S+)\s*-->/)
-      if (m && m[1] in LAYOUTS) return m[1] as LayoutType
+      const directive = parseLayoutDirective(node.value)
+      if (directive) {
+        if (directive.layout === 'two-column') {
+          return {
+            layout: directive.layout,
+            twoColumnRatio: directive.twoColumnRatio ?? { ...DEFAULT_TWO_COLUMN_RATIO },
+          }
+        }
+        return { layout: directive.layout }
+      }
     }
   }
-  return 'default'
+  return { layout: 'default' }
 }
 
 /** Remove comentários HTML de diretiva (layout, col) dos nós */
@@ -179,6 +202,20 @@ async function urlToBase64(url: string): Promise<{ data: string; mimeType: strin
   }
 }
 
+function parseImageSource(url: string): { kind: 'data'; data: string; mimeType: string } | { kind: 'remote'; url: string } | null {
+  if (url.startsWith('data:')) {
+    const match = url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
+    if (!match) return null
+    return { kind: 'data', mimeType: match[1], data: match[2] }
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    return { kind: 'remote', url }
+  }
+
+  return null
+}
+
 async function resizeImage(dataUrl: string, maxW = 1280, maxH = 720): Promise<{ data: string; w: number; h: number }> {
   return new Promise((resolve) => {
     const img = new Image()
@@ -217,10 +254,12 @@ let _highlighterPromise: Promise<Highlighter> | null = null
 
 function getHighlighter(): Promise<Highlighter> {
   if (!_highlighterPromise) {
-    _highlighterPromise = createHighlighter({
-      themes: ['catppuccin-mocha', 'github-light'] as BundledTheme[],
-      langs: HIGHLIGHT_LANGS,
-    })
+    _highlighterPromise = import('shiki').then(({ createHighlighter }) =>
+      createHighlighter({
+        themes: ['catppuccin-mocha', 'github-light'] as BundledTheme[],
+        langs: HIGHLIGHT_LANGS,
+      })
+    )
   }
   return _highlighterPromise
 }
@@ -354,26 +393,46 @@ async function renderContentNodes(
       node.children[0].type === 'image'
     ) {
       const imgNode = node.children[0] as { url: string }
+      const parsedSource = parseImageSource(imgNode.url)
       let dataB64: string | null = null
       let mimeType = 'image/jpeg'
 
-      if (imgNode.url.startsWith('data:')) {
-        const [header, data] = imgNode.url.split(',')
-        dataB64  = data
-        mimeType = header.replace('data:', '').replace(';base64', '') || 'image/jpeg'
-      } else {
-        const fetched = await urlToBase64(imgNode.url)
-        if (fetched) { dataB64 = fetched.data; mimeType = fetched.mimeType }
+      if (parsedSource?.kind === 'data') {
+        dataB64 = parsedSource.data
+        mimeType = parsedSource.mimeType
+      } else if (parsedSource?.kind === 'remote') {
+        const fetched = await urlToBase64(parsedSource.url)
+        if (fetched) {
+          dataB64 = fetched.data
+          mimeType = fetched.mimeType
+        }
       }
 
       if (dataB64) {
         const fullUrl = `data:${mimeType};base64,${dataB64}`
-        const resized = await resizeImage(fullUrl)
-        const aspect  = resized.w / resized.h
-        const imgW    = Math.min(area.w, 5)
-        const imgH    = imgW / aspect
+        let imgData = `image/jpeg;base64,${dataB64}`
+        let aspect = 16 / 9
+
+        try {
+          const resized = await Promise.race([
+            resizeImage(fullUrl),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
+          ])
+
+          if (resized) {
+            imgData = `image/jpeg;base64,${resized.data}`
+            aspect = resized.w / resized.h
+          } else {
+            imgData = `${mimeType};base64,${dataB64}`
+          }
+        } catch {
+          imgData = `${mimeType};base64,${dataB64}`
+        }
+
+        const imgW = Math.min(area.w, 5)
+        const imgH = imgW / aspect
         slide.addImage({
-          data: `image/jpeg;base64,${resized.data}`,
+          data: imgData,
           x: area.x, y: cursorY, w: imgW, h: imgH,
         })
         cursorY += imgH + 0.15
@@ -416,19 +475,15 @@ async function renderContentNodes(
     if (node.type === 'code' && node.lang === 'mermaid') {
       const svg = await renderMermaidSvg(node.value, themeId)
       if (svg) {
-        const dataUrl = svgToDataUrl(svg)
-        try {
-          const resized = await resizeImage(dataUrl)
-          const aspect  = resized.w / resized.h
-          const imgW    = Math.min(area.w, (maxY - cursorY) * aspect)
-          const imgH    = imgW / aspect
-          const xOffset = (area.w - imgW) / 2  // center horizontally
-          slide.addImage({
-            data: `image/jpeg;base64,${resized.data}`,
-            x: area.x + xOffset, y: cursorY, w: imgW, h: imgH,
-          })
-          cursorY += imgH + 0.15
-        } catch { /* skip if canvas render fails */ }
+        const aspect = extractSvgAspectRatio(svg) ?? 16 / 9
+        const imgW = Math.min(area.w, (maxY - cursorY) * aspect)
+        const imgH = imgW / aspect
+        const xOffset = (area.w - imgW) / 2
+        slide.addImage({
+          data: svgToDataUrl(svg).replace(/^data:/, ''),
+          x: area.x + xOffset, y: cursorY, w: imgW, h: imgH,
+        })
+        cursorY += imgH + 0.15
       }
       continue
     }
@@ -525,10 +580,11 @@ async function buildSlide(
   pptx: PptxGenJS,
   allNodes: RootContent[],
   slideIndex: number,
-  layout: LayoutType,
+  layoutConfig: LayoutConfig,
   colors: ThemeColors,
   themeId: string,
 ): Promise<boolean> {
+  const layout = layoutConfig.layout
   const slide = pptx.addSlide()
   slide.background = { color: colors.background }
 
@@ -608,12 +664,22 @@ async function buildSlide(
 
     // ── two-column: title at top, content split by <!-- col --> ─────────────
     case 'two-column': {
-      const headingIdx = nodes.findIndex(
+      const headingIdx = allNodes.findIndex(
         n => n.type === 'heading' && (n as { depth: number }).depth <= 2
       )
-      const heading   = headingIdx >= 0 ? nodes[headingIdx] : null
-      const bodyNodes = nodes.filter((_, i) => i !== headingIdx)
-      const [col1, col2] = splitAtCol(bodyNodes)
+      const heading   = headingIdx >= 0 ? allNodes[headingIdx] : null
+      const bodyNodes = allNodes.filter((_, i) => i !== headingIdx)
+      const [col1Raw, col2Raw] = splitAtCol(bodyNodes)
+      const col1 = filterDirectives(col1Raw)
+      const col2 = filterDirectives(col2Raw)
+      const ratio = layoutConfig.twoColumnRatio ?? DEFAULT_TWO_COLUMN_RATIO
+      const ratioTotal = ratio.left + ratio.right
+      const availableWidth = SLIDE_W - MARGIN * 2 - COL_GAP
+      const col1Width = availableWidth * (ratio.left / ratioTotal)
+      const col2Width = availableWidth * (ratio.right / ratioTotal)
+      const col1Area = { x: MARGIN, y: BODY_TOP, w: col1Width, h: BODY_H }
+      const col2Area = { x: MARGIN + col1Width + COL_GAP, y: BODY_TOP, w: col2Width, h: BODY_H }
+      const dividerX = MARGIN + col1Width + COL_GAP / 2
 
       if (geo.title && heading?.type === 'heading') {
         addTitleText(slide, heading.children as PhrasingContent[], geo.title, heading.depth, colors)
@@ -628,17 +694,17 @@ async function buildSlide(
 
       // Vertical divider
       slide.addShape(pptx.ShapeType.line, {
-        x: MARGIN + COL_W + COL_GAP / 2, y: BODY_TOP,
+        x: dividerX, y: BODY_TOP,
         w: 0, h: BODY_H,
         line: { color: colors.dividerColor, width: 1 },
       })
 
-      if (geo.col1) {
-        const o1 = await renderContentNodes(slide, col1, geo.col1, colors, themeId)
+      if (col1Area) {
+        const o1 = await renderContentNodes(slide, col1, col1Area, colors, themeId)
         if (o1) didOverflow = true
       }
-      if (geo.col2) {
-        const o2 = await renderContentNodes(slide, col2, geo.col2, colors, themeId)
+      if (col2Area) {
+        const o2 = await renderContentNodes(slide, col2, col2Area, colors, themeId)
         if (o2) didOverflow = true
       }
       break
@@ -759,6 +825,7 @@ export async function convertToPptx(
   markdown: string,
   options: ConvertOptions = {}
 ): Promise<ConvertResult> {
+  const { default: PptxGenJS } = await import('pptxgenjs')
   const pptx = new PptxGenJS()
 
   if (options.templateBuffer) {
@@ -784,8 +851,8 @@ export async function convertToPptx(
   const colors = theme.colors
   const overflowed: number[] = []
   for (let i = 0; i < slideGroups.length; i++) {
-    const layout      = extractLayout(slideGroups[i])
-    const didOverflow = await buildSlide(pptx, slideGroups[i], i, layout, colors, theme.id)
+    const layoutConfig = extractLayoutConfig(slideGroups[i])
+    const didOverflow = await buildSlide(pptx, slideGroups[i], i, layoutConfig, colors, theme.id)
     if (didOverflow) overflowed.push(i + 1)
   }
 

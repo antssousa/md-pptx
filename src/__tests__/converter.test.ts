@@ -12,6 +12,7 @@ import {
   flattenList,
   countAllListItems,
   extractLayout,
+  extractLayoutConfig,
   filterDirectives,
   splitAtCol,
 } from '../converter'
@@ -309,6 +310,26 @@ describe('extractLayout', () => {
   })
 })
 
+describe('extractLayoutConfig', () => {
+  it('retorna proporcao padrao para two-column sem configuracao explicita', () => {
+    const config = extractLayoutConfig([makeHtmlNode('<!-- layout: two-column -->')])
+    expect(config.layout).toBe('two-column')
+    expect(config.twoColumnRatio).toEqual({ left: 1, right: 1 })
+  })
+
+  it('retorna proporcao customizada para two-column', () => {
+    const config = extractLayoutConfig([makeHtmlNode('<!-- layout: two-column 40/60 -->')])
+    expect(config.layout).toBe('two-column')
+    expect(config.twoColumnRatio).toEqual({ left: 40, right: 60 })
+  })
+
+  it('ignora proporcao invalida e usa fallback 50/50', () => {
+    const config = extractLayoutConfig([makeHtmlNode('<!-- layout: two-column 40/0 -->')])
+    expect(config.layout).toBe('two-column')
+    expect(config.twoColumnRatio).toEqual({ left: 1, right: 1 })
+  })
+})
+
 // ─── filterDirectives ─────────────────────────────────────────────────────────
 
 describe('filterDirectives', () => {
@@ -410,6 +431,7 @@ describe('splitAtCol', () => {
 
 describe('convertToPptx', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     mockAddSlide.mockClear()
     mockWriteFile.mockClear()
     mockAddShape.mockClear()
@@ -475,6 +497,39 @@ describe('convertToPptx', () => {
     expect(mockAddSlide).toHaveBeenCalledTimes(1)
     // Deve ter chamado addShape para a linha divisória
     expect(mockAddShape).toHaveBeenCalled()
+  })
+
+  it('layout two-column: aplica largura customizada nas colunas do slide', async () => {
+    const { convertToPptx } = await import('../converter')
+    await convertToPptx(
+      '<!-- layout: two-column 40/60 -->\n# Título\n\nColuna esquerda\n\n<!-- col -->\n\nColuna direita'
+    )
+
+    const slide = mockAddSlide.mock.calls[0][0]
+    const bodyCalls = slide.addText.mock.calls.filter(([content]: [unknown, unknown]) => {
+      const serialized = JSON.stringify(content)
+      return serialized.includes('Coluna esquerda') || serialized.includes('Coluna direita')
+    })
+    expect(bodyCalls).toHaveLength(2)
+    expect(bodyCalls[0][1].w).toBeCloseTo(3.5, 3)
+    expect(bodyCalls[1][1].w).toBeCloseTo(5.25, 3)
+  })
+
+  it('bloco mermaid: exporta SVG com proporcao derivada do viewBox', async () => {
+    const mermaidModule = await import('../mermaid')
+    vi.spyOn(mermaidModule, 'renderMermaidSvg').mockResolvedValue(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200"><rect width="400" height="200" /></svg>'
+    )
+
+    const { convertToPptx } = await import('../converter')
+    await convertToPptx('```mermaid\nflowchart TD\nA-->B\n```')
+
+    const slide = mockAddSlide.mock.calls[0][0]
+    expect(slide.addImage).toHaveBeenCalledTimes(1)
+
+    const mermaidImageCall = slide.addImage.mock.calls[0][0]
+    expect(mermaidImageCall.data).toContain('image/svg+xml;base64,')
+    expect(mermaidImageCall.w / mermaidImageCall.h).toBeCloseTo(2, 3)
   })
 
   it('layouts diferentes em slides diferentes', async () => {

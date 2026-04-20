@@ -48,6 +48,13 @@ describe('preprocessLayoutDirectives', () => {
     expect(result).not.toContain('<!-- col -->')
   })
 
+  it('two-column: aplica proporcoes customizadas na estrutura gerada', () => {
+    const md = '<!-- layout: two-column 40/60 -->\n# Título\n\nColuna esquerda\n\n<!-- col -->\n\nColuna direita'
+    const result = preprocessLayoutDirectives(md)
+    expect(result).toContain('--column-left: 40')
+    expect(result).toContain('--column-right: 60')
+  })
+
   it('two-column: remove o marcador <!-- col --> do output', () => {
     const md = '<!-- layout: two-column -->\n# T\n\nEsq\n\n<!-- col -->\n\nDir'
     const result = preprocessLayoutDirectives(md)
@@ -121,6 +128,14 @@ describe('renderMarkdown', () => {
     const combined = result.slides.join('')
     expect(combined).toContain('layout-two-column')
     expect(combined).toContain('col-layout')
+  })
+
+  it('layout two-column: preserva proporcoes customizadas no HTML renderizado', () => {
+    const md = '<!-- layout: two-column 30/70 -->\n# Título\n\nEsquerda\n\n<!-- col -->\n\nDireita'
+    const result = renderMarkdown(md)
+    const combined = result.slides.join('')
+    expect(combined).toContain('--column-left: 30')
+    expect(combined).toContain('--column-right: 70')
   })
 
   // ─── Segurança ────────────────────────────────────────────────────────────
@@ -198,28 +213,47 @@ describe('createSlideFrame', () => {
 
 describe('scaleFrame', () => {
   it('aplica transform scale ao iframe', () => {
+    const mount = document.createElement('div')
+    Object.defineProperty(mount, 'clientWidth',  { value: 1024, configurable: true })
+    Object.defineProperty(mount, 'clientHeight', { value: 600,  configurable: true })
     const wrapper = document.createElement('div')
-    Object.defineProperty(wrapper, 'clientWidth',  { value: 1024, configurable: true })
-    Object.defineProperty(wrapper, 'clientHeight', { value: 600,  configurable: true })
-    document.body.appendChild(wrapper)
+    mount.appendChild(wrapper)
+    document.body.appendChild(mount)
     const iframe = document.createElement('iframe')
     wrapper.appendChild(iframe)
     scaleFrame(iframe, wrapper)
     expect(iframe.style.transform).toMatch(/scale\(/)
-    wrapper.remove()
+    mount.remove()
   })
 
   it('scale não excede 1 quando wrapper é menor que 960×540', () => {
+    const mount = document.createElement('div')
+    Object.defineProperty(mount, 'clientWidth',  { value: 500, configurable: true })
+    Object.defineProperty(mount, 'clientHeight', { value: 300, configurable: true })
     const wrapper = document.createElement('div')
-    Object.defineProperty(wrapper, 'clientWidth',  { value: 500, configurable: true })
-    Object.defineProperty(wrapper, 'clientHeight', { value: 300, configurable: true })
-    document.body.appendChild(wrapper)
+    mount.appendChild(wrapper)
+    document.body.appendChild(mount)
     const iframe = document.createElement('iframe')
     wrapper.appendChild(iframe)
     scaleFrame(iframe, wrapper)
     const scale = parseFloat(iframe.style.transform.replace('scale(', '').replace(')', ''))
-    expect(scale).toBeLessThanOrEqual(1)
-    wrapper.remove()
+    expect(scale).toBeLessThan(1)
+    mount.remove()
+  })
+
+  it('permite ampliar acima de 1x quando a viewport do preview e maior que o slide base', () => {
+    const mount = document.createElement('div')
+    Object.defineProperty(mount, 'clientWidth',  { value: 1600, configurable: true })
+    Object.defineProperty(mount, 'clientHeight', { value: 900, configurable: true })
+    const wrapper = document.createElement('div')
+    mount.appendChild(wrapper)
+    document.body.appendChild(mount)
+    const iframe = document.createElement('iframe')
+    wrapper.appendChild(iframe)
+    scaleFrame(iframe, wrapper)
+    const scale = parseFloat(iframe.style.transform.replace('scale(', '').replace(')', ''))
+    expect(scale).toBeGreaterThan(1)
+    mount.remove()
   })
 })
 
