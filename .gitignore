@@ -34,3 +34,10 @@ npm-debug.log*
 # Claude Code
 CLAUDE.md
 .claude/
+
+# stitch
+.stitch/
+stitch/
+
+# docs (plugin/tool artifacts)
+docs/

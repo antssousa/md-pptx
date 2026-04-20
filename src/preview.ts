@@ -1,6 +1,7 @@
 import Marp from '@marp-team/marp-core'
 import DOMPurify from 'dompurify'
-import { DEFAULT_THEME, type Theme } from './themes'
+import { DEFAULT_THEME, type Theme, type ThemeColors } from './themes'
+import { renderMermaidSvg, svgToDataUrl } from './mermaid'
 
 // html: true permite que o pré-processador injete divs para two-column.
 // DOMPurify sanitiza o output, então não há risco de XSS.
@@ -14,30 +15,35 @@ export interface RenderResult {
 
 // ─── CSS injetado para cada layout ────────────────────────────────────────────
 
-const LAYOUT_CSS = `
+/**
+ * Gera o CSS dos layouts usando as cores do tema ativo, evitando cores hardcoded
+ * que ficariam erradas em temas diferentes (ex: divisor #e0e0e0 no Catppuccin dark).
+ */
+function buildLayoutCss(colors: ThemeColors): string {
+  return `
 /* ── default: padrão Marp ─────────────────────────────── */
 
 /* ── blank: conteúdo preenche o slide, sem título destacado ── */
 section.layout-blank h1,
 section.layout-blank h2 {
-  font-size: 1.4em;
-  margin-top: 0;
-  border-bottom: none;
-  background: none;
-  color: #313244;
+  font-size: 1.4em !important;
+  margin-top: 0 !important;
+  border-bottom: none !important;
+  background: none !important;
 }
 
 /* ── title-only: título centralizado verticalmente ── */
 section.layout-title-only {
   display: flex !important;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
 }
 section.layout-title-only h1 {
-  font-size: 2.8em;
-  margin: 0;
+  font-size: 2.8em !important;
+  margin: 0 !important;
+  border-bottom: none !important;
 }
 
 /* ── two-column: duas colunas com divisor central ── */
@@ -50,7 +56,7 @@ section.layout-two-column .col-layout {
 section.layout-two-column .col {
   flex: 1;
   overflow: hidden;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid #${colors.dividerColor};
   padding-right: 1em;
 }
 section.layout-two-column .col:last-child {
@@ -61,22 +67,23 @@ section.layout-two-column .col:last-child {
 /* ── caption: conteúdo no topo, título como legenda no rodapé ── */
 section.layout-caption {
   display: flex !important;
-  flex-direction: column;
-  padding-bottom: 0.5em;
+  flex-direction: column !important;
+  padding-bottom: 0.5em !important;
 }
-section.layout-caption > *:not(h1):not(h2) {
+section.layout-caption > *:not(h1):not(h2):not(header):not(footer) {
   flex: 1;
 }
 section.layout-caption h1,
 section.layout-caption h2 {
   order: 99;
-  font-size: 1.3em;
-  margin-top: auto;
-  padding-top: 0.4em;
-  border-top: 2px solid #89b4fa;
-  color: #1e1e2e;
+  font-size: 1.3em !important;
+  margin-top: auto !important;
+  padding-top: 0.4em !important;
+  border-bottom: none !important;
+  border-top: 2px solid #${colors.accentColor} !important;
 }
 `
+}
 
 // ─── Pré-processador de diretivas de layout ───────────────────────────────────
 
@@ -145,6 +152,40 @@ export function preprocessLayoutDirectives(md: string): string {
   return processed.join('\n\n---\n\n')
 }
 
+// ─── Mermaid pre-processor ────────────────────────────────────────────────────
+
+const MERMAID_FENCE_RE = /```mermaid\n([\s\S]*?)```/g
+
+/**
+ * Finds all ```mermaid blocks in raw markdown, renders them to SVG data URLs,
+ * and replaces each block with an image tag `![](data:image/svg+xml;base64,...)`.
+ * Blocks that fail to render are left unchanged (shown as code in preview).
+ */
+export async function preprocessMermaid(md: string, themeId: string): Promise<string> {
+  // Collect all mermaid blocks with their positions
+  const matches: Array<{ full: string; code: string }> = []
+  MERMAID_FENCE_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = MERMAID_FENCE_RE.exec(md)) !== null) {
+    matches.push({ full: m[0], code: m[1].trim() })
+  }
+  if (matches.length === 0) return md
+
+  // Render all in parallel
+  const svgs = await Promise.all(
+    matches.map(({ code }) => renderMermaidSvg(code, themeId))
+  )
+
+  let result = md
+  for (let i = 0; i < matches.length; i++) {
+    const svg = svgs[i]
+    if (!svg) continue  // keep original code block on failure
+    const dataUrl = svgToDataUrl(svg)
+    result = result.replace(matches[i].full, `![diagram](${dataUrl})`)
+  }
+  return result
+}
+
 // ─── renderMarkdown ────────────────────────────────────────────────────────────
 
 export function renderMarkdown(md: string, theme: Theme = DEFAULT_THEME): RenderResult {
@@ -182,14 +223,55 @@ export function renderMarkdown(md: string, theme: Theme = DEFAULT_THEME): Render
         'data-marpit-svg', 'data-marpit-pagination',
         'data-marpit-pagination-total',
       ],
+      // Allow data:image/svg+xml (mermaid diagrams) and data:image/* (pasted images)
+      ALLOWED_URI_REGEXP: /^(?:https?:|data:image\/(?:svg\+xml|png|jpeg|gif|webp);base64,)/i,
     })
   })
 
   return {
     slides: slides.length ? slides : [''],
-    css: result.css + LAYOUT_CSS + theme.colors.previewCss,
+    css: result.css + buildLayoutCss(theme.colors) + theme.colors.previewCss,
     count: slides.length,
   }
+}
+
+// ─── PDF print helper ─────────────────────────────────────────────────────────
+
+/**
+ * Builds a self-contained HTML document with all slides ready for printing.
+ * Each slide gets its own page via `@page { size: 960px 540px; margin: 0 }`.
+ */
+export function buildPrintDocument(slides: string[], css: string): string {
+  const pages = slides.map((slideHtml, i) =>
+    `<div class="print-page${i === slides.length - 1 ? ' last' : ''}">${slideHtml}</div>`
+  ).join('\n')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+@page { size: 960px 540px; margin: 0; }
+html, body { width: 960px; background: white; }
+${css}
+section {
+  width: 960px !important;
+  height: 540px !important;
+  position: relative;
+  overflow: hidden;
+}
+.print-page {
+  width: 960px;
+  height: 540px;
+  page-break-after: always;
+  overflow: hidden;
+}
+.print-page.last { page-break-after: avoid; }
+</style>
+</head>
+<body>${pages}</body>
+</html>`
 }
 
 // ─── Frame helpers ────────────────────────────────────────────────────────────

@@ -1,9 +1,16 @@
 import './style.css'
 import { createEditor, insertAround, insertAtLineStart, insertLine, setEditorContent, INITIAL_MD } from './editor'
-import { renderMarkdown, mountSlideInFrame, createSlideFrame, scaleFrame } from './preview'
-import { convertToPptx } from './converter'
+import { renderMarkdown, mountSlideInFrame, createSlideFrame, scaleFrame, preprocessMermaid } from './preview'
+import { convertToPptx, estimateSlideDensities } from './converter'
 import { setupTemplateLoader, getTemplateState } from './template'
 import { THEMES, getTheme, DEFAULT_THEME, type Theme } from './themes'
+import {
+  listProjects, loadProjectContent, deleteProject,
+  createProject, updateProjectMeta, setCurrentProjectId,
+  getCurrentProjectId, extractProjectName,
+  PROJECT_KEY_PREFIX,
+  type Project,
+} from './storage'
 
 // ─── URL hash sharing ────────────────────────────────────────────────────────
 const HASH_PREFIX = 'md='
@@ -22,20 +29,8 @@ function decodeFromHash(): string | null {
   }
 }
 
-// ─── Auto-save ───────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'md-pptx-draft'
-
-function loadDraft(): string | null {
-  try { return localStorage.getItem(STORAGE_KEY) } catch { return null }
-}
-
-function saveDraft(md: string): void {
-  try { localStorage.setItem(STORAGE_KEY, md) } catch { /* quota exceeded */ }
-}
-
-function clearDraft(): void {
-  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
-}
+// ─── Active project id ───────────────────────────────────────────────────────
+let currentProjectId: string = ''
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const editorMount    = document.getElementById('editor-mount')!
@@ -62,11 +57,14 @@ const presentationCounter = document.getElementById('presentation-counter')!
 const presentationPrevBtn = document.getElementById('presentation-prev') as HTMLButtonElement
 const presentationNextBtn = document.getElementById('presentation-next') as HTMLButtonElement
 const btnPlay             = document.getElementById('btn-play') as HTMLButtonElement
+const densityFill         = document.getElementById('density-fill')!
+const densityLabel        = document.getElementById('density-label')!
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let currentSlides: string[] = []
-let currentCss    = ''
-let currentSlide  = 0
+let currentSlides:    string[] = []
+let currentCss      = ''
+let currentSlide    = 0
+let currentDensities: number[] = []
 let iframe: HTMLIFrameElement | null = null
 
 // ─── Theme state ─────────────────────────────────────────────────────────────
@@ -119,6 +117,14 @@ function updateSlideNav() {
   nextBtn.disabled = currentSlide === total - 1
 }
 
+function updateDensityIndicator(): void {
+  const pct = currentDensities[currentSlide] ?? 0
+  densityFill.style.width = `${pct}%`
+  const level = pct < 60 ? 'low' : pct < 85 ? 'medium' : 'high'
+  densityFill.className = `density-fill ${level}`
+  densityLabel.textContent = `${pct}%`
+}
+
 function showSlide(index: number) {
   if (!currentSlides.length) return
   currentSlide = Math.max(0, Math.min(index, currentSlides.length - 1))
@@ -135,6 +141,7 @@ function showSlide(index: number) {
   mountSlideInFrame(iframe!, currentSlides[currentSlide], currentCss)
   scaleFrame(iframe!, wrapper!)
   updateSlideNav()
+  updateDensityIndicator()
 }
 
 // ─── Debounce helper ──────────────────────────────────────────────────────────
@@ -148,32 +155,80 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
 
 // ─── Markdown change handler ──────────────────────────────────────────────────
 const handleMdChange = debounce((md: string) => {
-  // Auto-save
-  showSaveStatus('saving')
-  saveDraft(md)
-  showSaveStatus('saved')
+  void (async () => {
+    // Auto-save content to project key
+    showSaveStatus('saving')
+    try { localStorage.setItem(`${PROJECT_KEY_PREFIX}${currentProjectId}`, md) } catch { /* quota */ }
+    const name = extractProjectName(md)
+    updateProjectMeta(currentProjectId, {
+      ...(name ? { name } : {}),
+      modifiedAt: Date.now(),
+    })
+    showSaveStatus('saved')
 
-  // Preview
-  const result = renderMarkdown(md, currentTheme)
-  currentSlides = result.slides
-  currentCss    = result.css
-  if (currentSlide >= result.count) currentSlide = result.count - 1
-  showSlide(currentSlide)
+    // Pre-process mermaid blocks, then render preview
+    const processedMd = await preprocessMermaid(md, currentTheme.id)
+    const result = renderMarkdown(processedMd, currentTheme)
+    currentSlides    = result.slides
+    currentCss       = result.css
+    currentDensities = estimateSlideDensities(md)
+    if (currentSlide >= result.count) currentSlide = result.count - 1
+    showSlide(currentSlide)
+
+    updateProjectMeta(currentProjectId, { slideCount: result.count })
+    renderProjectList()
+  })()
 }, 300)
 
 // ─── Editor init ─────────────────────────────────────────────────────────────
 const sharedContent = decodeFromHash()
-const savedDraft    = sharedContent ?? loadDraft()
-const editor = createEditor(editorMount, handleMdChange, savedDraft ?? undefined)
+
+// Resolve initial project
+let initialProject: Project
 
 if (sharedContent) {
-  // Persiste o conteúdo compartilhado como rascunho e limpa o hash da URL
-  saveDraft(sharedContent)
   history.replaceState(null, '', window.location.pathname + window.location.search)
-  showToast('Apresentação carregada via link compartilhado.', 'success')
-} else if (savedDraft) {
-  showToast('Rascunho restaurado automaticamente.', 'success')
+  const existingId = getCurrentProjectId()
+  if (existingId && loadProjectContent(existingId) !== null) {
+    currentProjectId = existingId
+    updateProjectMeta(existingId, { modifiedAt: Date.now() })
+    try { localStorage.setItem(`${PROJECT_KEY_PREFIX}${existingId}`, sharedContent) } catch { /* quota */ }
+    const meta = listProjects().find(p => p.id === existingId)
+    initialProject = { ...(meta ?? { id: existingId, name: 'Rascunho', themeId: currentTheme.id, slideCount: 0, modifiedAt: Date.now() }), markdown: sharedContent }
+  } else {
+    initialProject = createProject(sharedContent, currentTheme.id)
+    currentProjectId = initialProject.id
+    setCurrentProjectId(initialProject.id)
+  }
+} else {
+  const savedId = getCurrentProjectId()
+  const content = savedId ? loadProjectContent(savedId) : null
+  if (content !== null && savedId) {
+    currentProjectId = savedId
+    const meta = listProjects().find(p => p.id === savedId)
+    initialProject = { ...(meta ?? { id: savedId, name: 'Rascunho', themeId: currentTheme.id, slideCount: 0, modifiedAt: Date.now() }), markdown: content }
+  } else {
+    const oldDraft = localStorage.getItem('md-pptx-draft')
+    if (oldDraft) {
+      initialProject = createProject(oldDraft, currentTheme.id)
+      localStorage.removeItem('md-pptx-draft')
+    } else {
+      initialProject = createProject(INITIAL_MD, currentTheme.id)
+    }
+    currentProjectId = initialProject.id
+    setCurrentProjectId(initialProject.id)
+  }
 }
+
+const editor = createEditor(editorMount, handleMdChange, initialProject.markdown)
+
+if (sharedContent) {
+  showToast('Apresentação carregada via link compartilhado.', 'success')
+} else if (listProjects().length > 1 || (initialProject.name !== 'Untitled Project 1')) {
+  showToast(`Projeto restaurado: ${initialProject.name}`, 'success')
+}
+
+renderProjectList()
 
 // ─── Formatting toolbar ───────────────────────────────────────────────────────
 document.getElementById('tool-bold')?.addEventListener('click', () => {
@@ -199,12 +254,18 @@ document.getElementById('tool-image')?.addEventListener('click', () => {
 
 // ─── Novo documento ──────────────────────────────────────────────────────────
 newBtn.addEventListener('click', () => {
-  if (!confirm('Descartar o rascunho atual e começar um novo documento?')) return
-  clearDraft()
+  if (!confirm('Criar um novo projeto?')) return
+  const md = editor.state.doc.toString()
+  try { localStorage.setItem(`${PROJECT_KEY_PREFIX}${currentProjectId}`, md) } catch { /* quota */ }
+  const newProj = createProject(INITIAL_MD, currentTheme.id)
+  currentProjectId = newProj.id
+  setCurrentProjectId(newProj.id)
   setEditorContent(editor, INITIAL_MD)
+  currentSlide = 0
   saveStatusEl.className   = 'save-status idle'
   saveStatusEl.textContent = ''
-  showToast('Novo documento criado.', 'success')
+  renderProjectList()
+  showToast('Novo projeto criado.', 'success')
   editor.focus()
 })
 
@@ -217,8 +278,14 @@ importInput.addEventListener('change', () => {
     const content = e.target?.result as string
     if (!content) return
     setEditorContent(editor, content)
-    saveDraft(content)
+    try { localStorage.setItem(`${PROJECT_KEY_PREFIX}${currentProjectId}`, content) } catch { /* quota */ }
+    const importedName = extractProjectName(content)
+    updateProjectMeta(currentProjectId, {
+      ...(importedName ? { name: importedName } : {}),
+      modifiedAt: Date.now(),
+    })
     showSaveStatus('saved')
+    renderProjectList()
     showToast(`Arquivo "${file.name}" importado.`, 'success')
     editor.focus()
   }
@@ -295,6 +362,7 @@ const themeBadgeEl = document.getElementById('theme-badge')
 function applyThemeSelection(theme: Theme) {
   currentTheme = theme
   try { localStorage.setItem(THEME_STORAGE_KEY, theme.id) } catch { /* quota */ }
+  updateProjectMeta(currentProjectId, { themeId: theme.id })
 
   // Update active button
   document.querySelectorAll<HTMLButtonElement>('.theme-btn[data-theme]').forEach(btn => {
@@ -369,6 +437,83 @@ setupTemplateLoader(templateInput, templateBadge, (name) => {
   showToast(`Template carregado: ${name}`, 'success')
 })
 
+// ─── Project list rendering ───────────────────────────────────────────────────
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function renderProjectList(): void {
+  const listEl = document.getElementById('project-list')
+  if (!listEl) return
+  const projects = listProjects().slice(0, 10)
+  listEl.innerHTML = ''
+  for (const proj of projects) {
+    const item = document.createElement('button')
+    item.className = `project-item${proj.id === currentProjectId ? ' active' : ''}`
+    item.dataset.id = proj.id
+    const dateStr = new Date(proj.modifiedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+    item.innerHTML = `
+      <span class="material-symbols-outlined">description</span>
+      <span class="project-item-body">
+        <span class="project-item-name">${escapeHtml(proj.name)}</span>
+        <span class="project-item-meta">
+          <span class="badge project-slide-badge">${proj.slideCount}s</span>
+          <span class="project-item-date">${dateStr}</span>
+        </span>
+      </span>
+      <button class="project-delete-btn" title="Excluir projeto" tabindex="-1">
+        <span class="material-symbols-outlined">close</span>
+      </button>`
+    item.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.project-delete-btn')) return
+      switchToProject(proj.id)
+    })
+    item.querySelector('.project-delete-btn')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      handleDeleteProject(proj.id, proj.name)
+    })
+    listEl.appendChild(item)
+  }
+}
+
+function switchToProject(id: string): void {
+  if (id === currentProjectId) return
+  const md = editor.state.doc.toString()
+  try { localStorage.setItem(`${PROJECT_KEY_PREFIX}${currentProjectId}`, md) } catch { /* quota */ }
+  const content = loadProjectContent(id)
+  if (content === null) { showToast('Projeto não encontrado.', 'error'); return }
+  const meta = listProjects().find(p => p.id === id)
+  currentProjectId = id
+  setCurrentProjectId(id)
+  setEditorContent(editor, content)
+  currentSlide = 0
+  if (meta) applyThemeSelection(getTheme(meta.themeId))
+  renderProjectList()
+  showToast(`Projeto: ${meta?.name ?? id}`, 'success')
+  editor.focus()
+}
+
+function handleDeleteProject(id: string, name: string): void {
+  if (!confirm(`Excluir "${name}"? Esta ação não pode ser desfeita.`)) return
+  deleteProject(id)
+  if (id === currentProjectId) {
+    const remaining = listProjects()
+    if (remaining.length > 0) {
+      switchToProject(remaining[0].id)
+    } else {
+      const newProj = createProject(INITIAL_MD, currentTheme.id)
+      currentProjectId = newProj.id
+      setCurrentProjectId(newProj.id)
+      setEditorContent(editor, INITIAL_MD)
+      currentSlide = 0
+      renderProjectList()
+    }
+  } else {
+    renderProjectList()
+  }
+  showToast(`Projeto "${name}" excluído.`, 'success')
+}
+
 // ─── Presentation mode ───────────────────────────────────────────────────────
 let presentationSlide = 0
 let presentationIframe: HTMLIFrameElement | null = null
@@ -439,6 +584,28 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => {
   if (!presentationOverlay.hidden) scalePresentationFrame()
+})
+
+// ─── Keyboard shortcuts modal ────────────────────────────────────────────────
+const shortcutsModal = document.getElementById('shortcuts-modal')!
+
+function openShortcuts() { shortcutsModal.hidden = false }
+function closeShortcuts() { shortcutsModal.hidden = true }
+
+document.getElementById('shortcuts-btn')?.addEventListener('click', () => openShortcuts())
+document.getElementById('shortcuts-close')?.addEventListener('click', () => closeShortcuts())
+
+shortcutsModal.addEventListener('click', (e) => {
+  if (e.target === shortcutsModal) closeShortcuts()
+})
+
+document.addEventListener('keydown', (e) => {
+  if (!shortcutsModal.hidden && e.key === 'Escape') { closeShortcuts(); return }
+  if (shortcutsModal.hidden && presentationOverlay.hidden) {
+    if (e.key === '?' && !(e.target instanceof HTMLElement && e.target.closest('.cm-editor'))) {
+      openShortcuts()
+    }
+  }
 })
 
 // ─── Export PDF ──────────────────────────────────────────────────────────────

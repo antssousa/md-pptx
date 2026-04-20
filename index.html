@@ -36,7 +36,7 @@
           <input id="template-input" type="file" accept=".pptx" hidden />
         </label>
         <span id="template-name" class="template-badge" hidden></span>
-        <button id="pdf-btn" class="btn btn-ghost" title="Exportar PDF">
+        <button id="pdf-btn" class="btn btn-ghost" title="Exportar PDF (via impressão)">
           <span class="material-symbols-outlined">picture_as_pdf</span>
           PDF
         </button>
@@ -53,24 +53,16 @@
       <!-- Sidebar -->
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-label">Gallery Workspace</div>
-        <nav class="sidebar-nav">
-          <a href="#" class="sidebar-item">
+
+        <div class="sidebar-section" id="projects-section">
+          <div class="sidebar-section-label">
             <span class="material-symbols-outlined">folder_open</span>
-            All Projects
-          </a>
-          <a href="#" class="sidebar-item">
-            <span class="material-symbols-outlined">auto_awesome_motion</span>
-            Templates
-          </a>
-          <a href="#" class="sidebar-item active">
-            <span class="material-symbols-outlined">history</span>
-            Recent Slides
-          </a>
-          <a href="#" class="sidebar-item">
-            <span class="material-symbols-outlined">inventory_2</span>
-            Archive
-          </a>
-        </nav>
+            Projetos
+          </div>
+          <div id="project-list" class="project-list">
+            <!-- populated by renderProjectList() in main.ts -->
+          </div>
+        </div>
 
         <div class="sidebar-section">
           <div class="sidebar-section-label">
@@ -162,6 +154,9 @@
             <button class="editor-tool" id="share-btn" title="Copiar link compartilhável">
               <span class="material-symbols-outlined">share</span>
             </button>
+            <button class="editor-tool" id="shortcuts-btn" title="Atalhos de teclado (?)">
+              <span class="material-symbols-outlined">keyboard</span>
+            </button>
             <div class="tool-spacer"></div>
             <span id="save-status" class="save-status idle"></span>
             <span id="slide-count" class="badge">1 slide</span>
@@ -205,6 +200,11 @@
               <span class="material-symbols-outlined">chevron_right</span>
             </button>
             <div class="float-sep"></div>
+            <span id="density-indicator" class="density-indicator" title="Densidade de conteúdo do slide">
+              <span class="density-bar"><span id="density-fill" class="density-fill"></span></span>
+              <span id="density-label" class="density-label">—</span>
+            </span>
+            <div class="float-sep"></div>
             <button class="float-btn" id="btn-grid" title="Visão em grade">
               <span class="material-symbols-outlined">grid_view</span>
             </button>
@@ -218,6 +218,52 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
+
+    <!-- ── Keyboard shortcuts modal ─────────────────────────────────── -->
+    <div id="shortcuts-modal" class="modal-overlay" hidden>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Atalhos de teclado">
+        <div class="modal-header">
+          <span class="modal-title">
+            <span class="material-symbols-outlined">keyboard</span>
+            Atalhos de teclado
+          </span>
+          <button class="modal-close" id="shortcuts-close" title="Fechar">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Editor</div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>B</kbd><span>Negrito</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>I</kbd><span>Itálico</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Z</kbd><span>Desfazer</span></div>
+            <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd><span>Refazer</span></div>
+            <div class="shortcut-row"><kbd>Tab</kbd><span>Indentar lista</span></div>
+          </div>
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Navegação de slides</div>
+            <div class="shortcut-row"><kbd>→</kbd> <kbd>↓</kbd><span>Próximo slide</span></div>
+            <div class="shortcut-row"><kbd>←</kbd> <kbd>↑</kbd><span>Slide anterior</span></div>
+          </div>
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Apresentação (modo fullscreen)</div>
+            <div class="shortcut-row"><kbd>Space</kbd> <kbd>→</kbd><span>Próximo slide</span></div>
+            <div class="shortcut-row"><kbd>←</kbd><span>Slide anterior</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Sair da apresentação</span></div>
+          </div>
+
+          <div class="shortcut-group">
+            <div class="shortcut-group-title">Geral</div>
+            <div class="shortcut-row"><kbd>?</kbd><span>Abrir este painel</span></div>
+            <div class="shortcut-row"><kbd>Esc</kbd><span>Fechar modais</span></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
 
     <!-- ── Presentation overlay ──────────────────────────────────────── -->
     <div id="presentation-overlay" class="presentation-overlay" hidden>

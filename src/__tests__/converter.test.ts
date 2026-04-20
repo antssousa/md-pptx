@@ -10,6 +10,7 @@ import {
   phrasingToRuns,
   splitBySlides,
   flattenList,
+  countAllListItems,
   extractLayout,
   filterDirectives,
   splitAtCol,
@@ -74,6 +75,17 @@ describe('calcFontSize', () => {
 
   it('retorna baseSize quando lineCount é 0', () => {
     expect(calcFontSize(0, 18, 4)).toBe(18)
+  })
+
+  it('reduz fonte quando 11 linhas a 18pt não cabem em 3.5 polegadas', () => {
+    // 11 linhas × 18pt × 1.4 leading = 277.2pt > 3.5in × 72pt/in = 252pt → deve reduzir
+    const result = calcFontSize(11, 18, 3.5)
+    expect(result).toBeLessThan(18)
+  })
+
+  it('mantém 18pt para 10 linhas em 3.5 polegadas (limite exato)', () => {
+    // 10 linhas × 18pt × 1.4 = 252pt = 3.5in × 72pt/in → cabe
+    expect(calcFontSize(10, 18, 3.5)).toBe(18)
   })
 })
 
@@ -232,6 +244,28 @@ describe('flattenList', () => {
   it('retorna array vazio para lista sem itens', () => {
     const emptyList: List = { type: 'list', ordered: false, spread: false, children: [] }
     expect(flattenList(emptyList)).toEqual([])
+  })
+})
+
+// ─── countAllListItems ────────────────────────────────────────────────────────
+
+describe('countAllListItems', () => {
+  it('conta itens de lista simples corretamente', () => {
+    const ast = parseAst('- a\n- b\n- c')
+    const list = ast.children[0] as List
+    expect(countAllListItems(list)).toBe(3)
+  })
+
+  it('conta itens aninhados recursivamente', () => {
+    const ast = parseAst('- parent\n  - child1\n  - child2')
+    const list = ast.children[0] as List
+    // 1 parent + 2 children = 3
+    expect(countAllListItems(list)).toBe(3)
+  })
+
+  it('retorna 0 para lista vazia', () => {
+    const emptyList: List = { type: 'list', ordered: false, spread: false, children: [] }
+    expect(countAllListItems(emptyList)).toBe(0)
   })
 })
 

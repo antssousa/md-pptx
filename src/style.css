@@ -344,6 +344,8 @@ html, body {
   transform: rotate(180deg);
 }
 
+.layout-menu[hidden] { display: none; }
+
 .layout-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -773,4 +775,245 @@ html, body {
   border-radius: 50%;
   border: 2px solid;
   flex-shrink: 0;
+}
+
+/* ── Projects sidebar ──────────────────────────────────────────────────────── */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 320px;
+}
+
+.project-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 16px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--on-surface-variant);
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.project-item:hover { background: var(--surface-variant); }
+.project-item.active {
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.project-item > .material-symbols-outlined {
+  font-size: 18px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: var(--outline);
+}
+.project-item.active > .material-symbols-outlined { color: var(--primary); }
+
+.project-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.project-item.active .project-item-name {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.project-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-item-date {
+  font-size: 11px;
+  color: var(--outline);
+}
+
+.project-delete-btn {
+  background: none;
+  border: none;
+  color: var(--outline);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s, color .15s, background .15s;
+  flex-shrink: 0;
+}
+.project-delete-btn .material-symbols-outlined { font-size: 16px; }
+.project-item:hover .project-delete-btn { opacity: 1; }
+.project-delete-btn:hover {
+  color: var(--error, #f38ba8);
+  background: color-mix(in srgb, var(--error, #f38ba8) 12%, transparent);
+}
+
+/* ── Density indicator ─────────────────────────────────────────────────────── */
+.density-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.density-bar {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.density-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  transition: width .35s ease, background-color .35s ease;
+}
+.density-fill.low    { background: #a6e3a1; }
+.density-fill.medium { background: #f9e2af; }
+.density-fill.high   { background: #f38ba8; }
+
+.density-label {
+  font-size: 10px;
+  color: var(--outline);
+  min-width: 26px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Modal overlay (shortcuts, etc.) ──────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(4px);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay[hidden] { display: none; }
+
+.modal-panel {
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: 16px;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .6);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--outline-variant);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--on-surface);
+}
+.modal-title .material-symbols-outlined { font-size: 20px; color: var(--primary); }
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--outline);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s;
+}
+.modal-close:hover { background: var(--surface-high); color: var(--on-surface); }
+.modal-close .material-symbols-outlined { font-size: 20px; }
+
+.modal-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Shortcut groups ───────────────────────────────────────────────────────── */
+.shortcut-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcut-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--outline);
+  margin-bottom: 4px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--on-surface-variant);
+}
+
+.shortcut-row span:last-child {
+  margin-left: auto;
+  color: var(--outline);
+  text-align: right;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--surface-high);
+  border: 1px solid var(--outline-variant);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--on-surface);
+  white-space: nowrap;
 }
