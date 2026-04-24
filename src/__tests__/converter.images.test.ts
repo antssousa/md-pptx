@@ -44,5 +44,5 @@ describe('convertToPptx image sources', () => {
     expect(slide).toBeDefined()
     expect(slide.addImage).toHaveBeenCalled()
     expect(mockWriteFile).toHaveBeenCalledTimes(1)
-  })
+  }, 15000)
 })

@@ -22,9 +22,70 @@ export interface RenderResult {
  */
 function buildLayoutCss(colors: ThemeColors): string {
   return `
-/* ── default: padrão Marp ─────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════
+   Base — matches layout.html: padding 40px, flex column,
+   footer at bottom 20px with 3 dashed-border cells.
+   ═══════════════════════════════════════════════════════════ */
+section {
+  padding: 40px 40px 65px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  position: relative !important;
+}
 
-/* ── blank: conteúdo preenche o slide, sem título destacado ── */
+/* ── footer: 3 dashed cells (date | center | page) ── */
+.slide-footer-bar {
+  position: absolute !important;
+  bottom: 18px !important;
+  left: 40px !important;
+  right: 40px !important;
+  display: flex !important;
+  gap: 20px !important;
+  z-index: 10 !important;
+}
+.slide-footer-bar > span {
+  flex: 1 !important;
+  height: 22px !important;
+  border: 1px dashed #${colors.dividerColor} !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10px !important;
+  color: #${colors.mutedColor} !important;
+  background: transparent !important;
+}
+
+/* ── default (title-content) — title top, body below ── */
+section h1, section h2 {
+  min-height: 48px !important;
+  margin-bottom: 16px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   title-slide — centered title + subtitle (2/3 width)
+   ═══════════════════════════════════════════════════════════ */
+section.layout-title-slide {
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+}
+section.layout-title-slide h1 {
+  font-size: 2.2rem !important;
+  font-weight: 500 !important;
+  border-bottom: none !important;
+  margin: 0 0 0.4em !important;
+  width: 100% !important;
+}
+section.layout-title-slide p {
+  font-size: 1.2rem !important;
+  color: #${colors.mutedColor} !important;
+  margin: 0 !important;
+  width: 66% !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   blank — no title, content fills the slide
+   ═══════════════════════════════════════════════════════════ */
 section.layout-blank h1,
 section.layout-blank h2 {
   font-size: 1.4em !important;
@@ -33,26 +94,27 @@ section.layout-blank h2 {
   background: none !important;
 }
 
-/* ── title-only: título centralizado verticalmente ── */
-section.layout-title-only {
+/* ═══════════════════════════════════════════════════════════
+   title-only — title at top, rest empty
+   ═══════════════════════════════════════════════════════════ */
+section.layout-title-only h1,
+section.layout-title-only h2 {
+  font-size: 2.2rem !important;
+  font-weight: 500 !important;
+  min-height: 80px !important;
   display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
   align-items: center !important;
-  text-align: center !important;
-}
-section.layout-title-only h1 {
-  font-size: 2.8em !important;
-  margin: 0 !important;
   border-bottom: none !important;
+  margin: 0 !important;
 }
 
-/* ── two-column: duas colunas com divisor central ── */
+/* ═══════════════════════════════════════════════════════════
+   two-column — title + 2 equal columns
+   ═══════════════════════════════════════════════════════════ */
 section.layout-two-column .col-layout {
   display: flex;
-  gap: 1.5em;
-  margin-top: 0.5em;
-  height: calc(100% - 3em);
+  gap: 24px;
+  flex: 1;
   --column-left: 1;
   --column-right: 1;
 }
@@ -60,25 +122,23 @@ section.layout-two-column .col {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid #${colors.dividerColor};
-  padding-right: 1em;
+  padding: 16px;
+  border: 2px dashed #${colors.dividerColor};
 }
 section.layout-two-column .col:first-child {
   flex: var(--column-left) 1 0;
 }
 section.layout-two-column .col:last-child {
   flex: var(--column-right) 1 0;
-  border-right: none;
-  padding-right: 0;
 }
 
-/* ── caption: conteúdo no topo, título como legenda no rodapé ── */
+/* ═══════════════════════════════════════════════════════════
+   caption — content top, heading as caption at bottom
+   ═══════════════════════════════════════════════════════════ */
 section.layout-caption {
-  display: flex !important;
-  flex-direction: column !important;
-  padding-bottom: 0.5em !important;
+  padding-bottom: 65px !important;
 }
-section.layout-caption > *:not(h1):not(h2):not(header):not(footer) {
+section.layout-caption > *:not(h1):not(h2):not(header):not(footer):not(.slide-footer-bar) {
   flex: 1;
 }
 section.layout-caption h1,
@@ -89,6 +149,120 @@ section.layout-caption h2 {
   padding-top: 0.4em !important;
   border-bottom: none !important;
   border-top: 2px solid #${colors.accentColor} !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   section-header — vertically centered, title 3/4 width,
+   text 1/2 width below
+   ═══════════════════════════════════════════════════════════ */
+section.layout-section-header {
+  justify-content: center !important;
+  gap: 16px !important;
+}
+section.layout-section-header h1,
+section.layout-section-header h2 {
+  font-size: 2.2rem !important;
+  font-weight: 500 !important;
+  width: 75% !important;
+  border-bottom: none !important;
+  margin: 0 !important;
+}
+section.layout-section-header p {
+  width: 50% !important;
+  font-size: 0.95rem !important;
+  color: #${colors.mutedColor} !important;
+  margin: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   comparison — title + 2 columns each with sub-header
+   ═══════════════════════════════════════════════════════════ */
+section.layout-comparison .col-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  flex: 1;
+}
+section.layout-comparison .col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+section.layout-comparison .col h3,
+section.layout-comparison .col h4 {
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  min-height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  border: 2px dashed #${colors.dividerColor} !important;
+  padding: 4px 10px !important;
+  margin-bottom: 8px !important;
+  color: #${colors.bodyColor} !important;
+}
+section.layout-comparison .col > *:not(h3):not(h4) {
+  flex: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   main-point — large centered text in bordered box, 50% height
+   ═══════════════════════════════════════════════════════════ */
+section.layout-main-point {
+  justify-content: center !important;
+  align-items: center !important;
+}
+section.layout-main-point h1,
+section.layout-main-point h2,
+section.layout-main-point p {
+  border: 4px dashed #${colors.dividerColor} !important;
+  padding: 1em 1.5em !important;
+  font-size: 2.2rem !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  width: 100% !important;
+  min-height: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   content-caption — left 1/3 (title+caption) + right 2/3
+   ═══════════════════════════════════════════════════════════ */
+section.layout-content-caption .col-layout {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+section.layout-content-caption .col:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+section.layout-content-caption .col:last-child {
+  flex: 2 1 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 16px;
+  border: 2px dashed #${colors.dividerColor};
+}
+section.layout-content-caption .col:first-child h1,
+section.layout-content-caption .col:first-child h2 {
+  font-size: 1.5rem !important;
+  font-weight: 500 !important;
+  border-bottom: none !important;
+  margin: 0 !important;
+}
+section.layout-content-caption .col:first-child p {
+  font-size: 0.85rem !important;
+  color: #${colors.mutedColor} !important;
+  flex: 1;
+  padding: 12px;
+  border: 2px dashed #${colors.dividerColor};
 }
 `
 }
@@ -114,7 +288,9 @@ export function preprocessLayoutDirectives(md: string): string {
     let result = part.replace(/[ \t]*<!--\s*layout:\s*\S+(?:\s+\d+\s*\/\s*\d+)?\s*-->[ \t]*\n?/, '')
     result = `<!-- class: layout-${layout} -->\n${result}`
 
-    if (layout === 'two-column' && result.includes('<!-- col -->')) {
+    // Layouts that use <!-- col --> for splitting into two columns
+    const isColLayout = (layout === 'two-column' || layout === 'comparison' || layout === 'content-caption')
+    if (isColLayout && result.includes('<!-- col -->')) {
       // Localiza o marcador <!-- col --> e o heading (h1/h2) no conteúdo
       const colMarker = '<!-- col -->'
       const colIdx    = result.indexOf(colMarker)
@@ -124,10 +300,15 @@ export function preprocessLayoutDirectives(md: string): string {
       // Separa a diretiva Marp + heading do conteúdo da coluna esquerda
       const headingMatch = beforeCol.match(/^([\s\S]*?\n(?:#{1,6}[^\n]+)\n)([\s\S]*)$/)
 
+      // content-caption uses fixed 1:2 ratio; others use directive ratio
+      const colRatio = layout === 'content-caption'
+        ? { left: 1, right: 2 }
+        : directive.twoColumnRatio
+
       if (headingMatch) {
         const preamble  = headingMatch[1]  // class-directive + heading line
         const leftBody  = headingMatch[2].trim()
-        const styleAttr = getTwoColumnRatioStyle(directive.twoColumnRatio)
+        const styleAttr = getTwoColumnRatioStyle(colRatio)
         result = [
           preamble,
           `<div class="col-layout" style="${styleAttr}"><div class="col">`,
@@ -142,7 +323,7 @@ export function preprocessLayoutDirectives(md: string): string {
         ].join('\n')
       } else {
         // Sem heading: envolve todo o conteúdo nas colunas
-        const styleAttr = getTwoColumnRatioStyle(directive.twoColumnRatio)
+        const styleAttr = getTwoColumnRatioStyle(colRatio)
         result = [
           beforeCol,
           `<div class="col-layout" style="${styleAttr}"><div class="col">`,
@@ -216,7 +397,16 @@ export function renderMarkdown(md: string, theme: Theme = DEFAULT_THEME): Render
   const doc      = parser.parseFromString(result.html, 'text/html')
   const sections = Array.from(doc.querySelectorAll('section'))
 
-  const slides = sections.map(section => {
+  const slides = sections.map((section, slideIdx) => {
+    // Inject 3-part footer bar (date | center | page number)
+    const footerBar = doc.createElement('div')
+    footerBar.className = 'slide-footer-bar'
+    footerBar.innerHTML =
+      `<span class="footer-left"></span>` +
+      `<span class="footer-center"></span>` +
+      `<span class="footer-right">${slideIdx + 1}</span>`
+    section.appendChild(footerBar)
+
     const raw = section.outerHTML
     return DOMPurify.sanitize(raw, {
       ALLOWED_TAGS: [

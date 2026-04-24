@@ -1,4 +1,14 @@
-export type LayoutType = 'default' | 'two-column' | 'blank' | 'title-only' | 'caption'
+export type LayoutType =
+  | 'default'
+  | 'two-column'
+  | 'blank'
+  | 'title-only'
+  | 'caption'
+  | 'title-slide'
+  | 'section-header'
+  | 'comparison'
+  | 'main-point'
+  | 'content-caption'
 
 export interface TwoColumnRatio {
   left: number
@@ -30,7 +40,10 @@ export function parseLayoutDirective(value: string): LayoutDirectiveConfig | nul
   if (!match) return null
 
   const layout = match[1] as LayoutType
-  if (!['default', 'two-column', 'blank', 'title-only', 'caption'].includes(layout)) {
+  if (![
+    'default', 'two-column', 'blank', 'title-only', 'caption', 'title-slide',
+    'section-header', 'comparison', 'main-point', 'content-caption',
+  ].includes(layout)) {
     return null
   }
 

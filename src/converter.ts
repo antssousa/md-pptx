@@ -12,6 +12,7 @@ import {
 } from './layout-directives'
 import { DEFAULT_THEME, type Theme, type ThemeColors } from './themes'
 import { extractSvgAspectRatio, renderMermaidSvg, svgToDataUrl } from './mermaid'
+import { parseMarkdownProject } from "./markdown-config";
 
 // ─── Slide dimensions (inches, 16:9) ─────────────────────────────────────────
 const SLIDE_W = 10
@@ -41,6 +42,14 @@ export interface LayoutConfig {
 
 interface Area { x: number; y: number; w: number; h: number }
 
+interface LayoutAreas {
+  title?: Area
+  content?: Area
+  col1?: Area
+  col2?: Area
+  caption?: Area
+}
+
 // Shared geometry values
 const FOOTER_RES = 0.4
 const TITLE_Y    = 0.2
@@ -51,18 +60,14 @@ const BODY_H     = BODY_BOT - BODY_TOP
 const COL_GAP    = 0.25
 const COL_W      = (SLIDE_W - MARGIN * 2 - COL_GAP) / 2
 
-const LAYOUTS: Record<LayoutType, {
-  title?:   Area
-  content?: Area
-  col1?:    Area
-  col2?:    Area
-  caption?: Area
-}> = {
+const DEFAULT_LAYOUT_AREAS: LayoutAreas = {
+  title:   { x: MARGIN, y: TITLE_Y,  w: SLIDE_W - MARGIN * 2, h: TITLE_H },
+  content: { x: MARGIN, y: BODY_TOP, w: SLIDE_W - MARGIN * 2, h: BODY_H },
+}
+
+const LAYOUTS: Partial<Record<LayoutType, LayoutAreas>> = {
   /** Título no topo, área única de conteúdo abaixo */
-  default: {
-    title:   { x: MARGIN, y: TITLE_Y,  w: SLIDE_W - MARGIN * 2, h: TITLE_H },
-    content: { x: MARGIN, y: BODY_TOP, w: SLIDE_W - MARGIN * 2, h: BODY_H },
-  },
+  default: DEFAULT_LAYOUT_AREAS,
   /** Título no topo, duas colunas de conteúdo */
   'two-column': {
     title: { x: MARGIN,                    y: TITLE_Y,  w: SLIDE_W - MARGIN * 2, h: TITLE_H },
@@ -366,7 +371,7 @@ async function renderContentNodes(
   nodes: RootContent[],
   area: Area,
   colors: ThemeColors,
-  themeId: string,
+  themeId: string, baseFont?: string
 ): Promise<boolean> {
   let cursorY = area.y
   const maxY  = area.y + area.h
@@ -380,7 +385,7 @@ async function renderContentNodes(
       slide.addText(text, {
         x: area.x, y: cursorY, w: area.w, h: 0.45,
         fontSize: node.depth <= 2 ? 22 : 18,
-        bold: true, color: colors.bodyColor, fontFace: 'Calibri',
+        bold: true, color: colors.bodyColor, fontFace: baseFont || 'Calibri',
       })
       cursorY += 0.5
       continue
@@ -451,7 +456,7 @@ async function renderContentNodes(
       const blockH = Math.min(lines * (fs / 72) * 1.5, maxY - cursorY)
       slide.addText(runs, {
         x: area.x, y: cursorY, w: area.w, h: blockH,
-        fontSize: fs, color: colors.bodyColor, fontFace: 'Calibri', wrap: true,
+        fontSize: fs, color: colors.bodyColor, fontFace: baseFont || 'Calibri', wrap: true,
       })
       cursorY += blockH + 0.1
       continue
@@ -465,7 +470,7 @@ async function renderContentNodes(
       const blockH = Math.min(nItems * (fs / 72) * 1.6, maxY - cursorY)
       slide.addText(runs, {
         x: area.x, y: cursorY, w: area.w, h: blockH,
-        fontSize: fs, color: colors.bodyColor, fontFace: 'Calibri',
+        fontSize: fs, color: colors.bodyColor, fontFace: baseFont || 'Calibri',
       })
       cursorY += blockH + 0.1
       continue
@@ -546,7 +551,7 @@ async function renderContentNodes(
       const blockH = Math.min(lines * (fs / 72) * 1.5, maxY - cursorY)
       slide.addText(text, {
         x: area.x + 0.3, y: cursorY, w: area.w - 0.3, h: blockH,
-        fontSize: fs, italic: true, color: colors.mutedColor, fontFace: 'Calibri', wrap: true,
+        fontSize: fs, italic: true, color: colors.mutedColor, fontFace: baseFont || 'Calibri', wrap: true,
       })
       cursorY += blockH + 0.1
       continue
@@ -564,12 +569,12 @@ function addTitleText(
   area: Area,
   depth: number,
   colors: ThemeColors,
-  opts: Partial<PptxGenJS.TextPropsOptions> = {}
+  opts: Partial<PptxGenJS.TextPropsOptions> = {}, baseFont?: string
 ) {
   slide.addText(extractText(nodes), {
     x: area.x, y: area.y, w: area.w, h: area.h,
     fontSize: depth === 1 ? 36 : 28,
-    bold: true, color: colors.titleColor, fontFace: 'Calibri',
+    bold: true, color: colors.titleColor, fontFace: baseFont || 'Calibri',
     ...opts,
   })
 }
@@ -582,13 +587,13 @@ async function buildSlide(
   slideIndex: number,
   layoutConfig: LayoutConfig,
   colors: ThemeColors,
-  themeId: string,
+  themeId: string, baseFont?: string
 ): Promise<boolean> {
   const layout = layoutConfig.layout
   const slide = pptx.addSlide()
   slide.background = { color: colors.background }
 
-  const geo   = LAYOUTS[layout]
+  const geo   = LAYOUTS[layout] ?? DEFAULT_LAYOUT_AREAS
   const nodes = filterDirectives(allNodes)
 
   // ── 3-part footer (shared across all layouts) ──────────────────────────
@@ -622,7 +627,7 @@ async function buildSlide(
         line: { color: colors.accentColor, width: 5 },
       })
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, nodes, geo.content, colors, themeId)
+        didOverflow = await renderContentNodes(slide, nodes, geo.content, colors, themeId, baseFont)
       }
       break
     }
@@ -645,7 +650,7 @@ async function buildSlide(
       const bodyNodes  = nodes.filter((_, i) => i !== headingIdx)
 
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors, themeId)
+        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors, themeId, baseFont)
       }
       if (geo.caption && heading?.type === 'heading') {
         // Thin accent line above caption
@@ -656,7 +661,7 @@ async function buildSlide(
         })
         slide.addText(extractText(heading.children as PhrasingContent[]), {
           x: geo.caption.x, y: geo.caption.y, w: geo.caption.w, h: geo.caption.h,
-          fontSize: 24, bold: true, color: colors.titleColor, fontFace: 'Calibri',
+          fontSize: 24, bold: true, color: colors.titleColor, fontFace: baseFont || 'Calibri',
         })
       }
       break
@@ -700,11 +705,11 @@ async function buildSlide(
       })
 
       if (col1Area) {
-        const o1 = await renderContentNodes(slide, col1, col1Area, colors, themeId)
+        const o1 = await renderContentNodes(slide, col1, col1Area, colors, themeId, baseFont)
         if (o1) didOverflow = true
       }
       if (col2Area) {
-        const o2 = await renderContentNodes(slide, col2, col2Area, colors, themeId)
+        const o2 = await renderContentNodes(slide, col2, col2Area, colors, themeId, baseFont)
         if (o2) didOverflow = true
       }
       break
@@ -729,7 +734,7 @@ async function buildSlide(
         }
       }
       if (geo.content) {
-        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors, themeId)
+        didOverflow = await renderContentNodes(slide, bodyNodes, geo.content, colors, themeId, baseFont)
       }
       break
     }
@@ -770,7 +775,7 @@ function countContentLines(nodes: RootContent[], layout: LayoutType): number {
 
 /** Lines that comfortably fill the content area for a layout at 18pt / 1.5× leading */
 function maxLinesForLayout(layout: LayoutType): number {
-  const geo = LAYOUTS[layout]
+  const geo = LAYOUTS[layout] ?? DEFAULT_LAYOUT_AREAS
   const h   = geo.content?.h ?? geo.col1?.h ?? BODY_H
   return Math.max(1, Math.floor(h / ((18 / 72) * 1.5)))
 }
@@ -780,16 +785,18 @@ function maxLinesForLayout(layout: LayoutType): number {
  * 0 = empty, 100 = fully packed (may overflow).
  */
 export function estimateSlideDensities(markdown: string): number[] {
-  const cleaned   = markdown.replace(/^---[\s\S]*?---\n?/, '')
-  const processor = unified().use(remarkParse).use(remarkGfm)
-  const ast       = processor.parse(cleaned) as Root
-  const groups    = splitBySlides(ast)
-  return groups.map(nodes => {
-    const layout   = extractLayout(nodes)
-    const lines    = countContentLines(nodes, layout)
-    const maxLines = maxLinesForLayout(layout)
-    return Math.min(100, Math.round((lines / maxLines) * 100))
-  })
+
+      const { slidesMd } = parseMarkdownProject(markdown)
+      const cleaned   = slidesMd.replace(/^---[\s\S]*?---\n?/, '')
+      const processor = unified().use(remarkParse).use(remarkGfm)
+      const ast       = processor.parse(cleaned)
+      const groups    = splitBySlides(ast as any)
+      return groups.map(nodes => {
+        const layout   = extractLayout(nodes)
+        const lines    = countContentLines(nodes, layout)
+        const maxLines = maxLinesForLayout(layout)
+        return Math.min(100, Math.round((lines / maxLines) * 100))
+      })
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -825,37 +832,42 @@ export async function convertToPptx(
   markdown: string,
   options: ConvertOptions = {}
 ): Promise<ConvertResult> {
-  const { default: PptxGenJS } = await import('pptxgenjs')
-  const pptx = new PptxGenJS()
 
-  if (options.templateBuffer) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (pptx as any).load(new Uint8Array(options.templateBuffer))
-  } else {
-    pptx.layout  = 'LAYOUT_WIDE'
-    pptx.author  = 'md-pptx'
-    pptx.subject = 'Apresentação gerada a partir de Markdown'
-  }
+      const { config, slidesMd } = parseMarkdownProject(markdown)
+      const baseFont = config.font || 'Calibri'
+      
+      const { default: PptxGenJS } = await import('pptxgenjs')
+      const pptx = new PptxGenJS()
 
-  // Strip Marp front-matter before parsing
-  const cleaned = markdown.replace(/^---[\s\S]*?---\n?/, '')
-  const processor = unified().use(remarkParse).use(remarkGfm)
-  const ast = processor.parse(cleaned) as Root
-  const slideGroups = splitBySlides(ast)
+      if (options.templateBuffer) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (pptx as any).load(new Uint8Array(options.templateBuffer))
+      } else {
+        pptx.layout = config.ratio === '4:3' ? 'LAYOUT_4x3' : 'LAYOUT_WIDE'
+        pptx.author  = 'md-pptx'
+        pptx.subject = 'Apresentação gerada a partir de Markdown'
+      }
 
-  if (slideGroups.length === 0) {
-    slideGroups.push([{ type: 'paragraph', children: [{ type: 'text', value: '' }] }])
-  }
+      // Strip Marp front-matter before parsing
+      const cleaned = slidesMd.replace(/^---[\s\S]*?---\n?/, '')
+      const processor = unified().use(remarkParse).use(remarkGfm)
+      const ast = processor.parse(cleaned)
+      const slideGroups = splitBySlides(ast as any)
 
-  const theme  = options.theme ?? DEFAULT_THEME
-  const colors = theme.colors
-  const overflowed: number[] = []
-  for (let i = 0; i < slideGroups.length; i++) {
-    const layoutConfig = extractLayoutConfig(slideGroups[i])
-    const didOverflow = await buildSlide(pptx, slideGroups[i], i, layoutConfig, colors, theme.id)
-    if (didOverflow) overflowed.push(i + 1)
-  }
+      if (slideGroups.length === 0) {
+        slideGroups.push([{ type: 'paragraph', children: [{ type: 'text', value: '' }] }])
+      }
 
-  await pptx.writeFile({ fileName: 'apresentacao.pptx' })
-  return { overflowed }
+      const theme  = options.theme ?? DEFAULT_THEME
+      const colors = theme.colors
+      const overflowed: number[] = []
+      
+      for (let i = 0; i < slideGroups.length; i++) {
+        const layoutConfig = extractLayoutConfig(slideGroups[i])
+        const didOverflow = await buildSlide(pptx, slideGroups[i], i, layoutConfig, colors, theme.id, baseFont)
+        if (didOverflow) overflowed.push(i + 1)
+      }
+
+      await pptx.writeFile({ fileName: 'apresentacao.pptx' })
+      return { overflowed }
 }
